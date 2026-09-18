@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+# Binary assets - never diff or normalise these.
+*.task binary
+*.wasm binary
+*.data binary
+*.png binary
+*.jpg binary
+*.mp4 binary

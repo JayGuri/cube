@@ -1,0 +1,203 @@
+import { describe, expect, it } from 'vitest'
+import {
+  createControllerState,
+  DEFAULT_PROFILE,
+  handleIntent,
+  intentFromGestureEvent,
+  twistAxisFor,
+  type ControllerEvent,
+  type ControllerProfile,
+  type InputIntent,
+} from './InteractionController'
+import type { DragInput } from './MouseDragAdapter'
+
+const run = (intents: InputIntent[], profile: ControllerProfile = DEFAULT_PROFILE) => {
+  let state = createControllerState()
+  const events: ControllerEvent[] = []
+  for (const intent of intents) {
+    const r = handleIntent(state, intent, profile)
+    state = r.nextState
+    events.push(...r.events)
+  }
+  return { state, events }
+}
+
+const moves = (events: ControllerEvent[]) =>
+  events
+    .filter((e) => e.type === 'MOVE')
+    .map((e) => (e as { move: { alg: { toString(): string } } }).move.alg.toString())
+
+const axisScreenDirs: DragInput['axisScreenDirs'] = { x: [1, 0], y: [0, -1], z: [0.5, 0.5] }
+const slot = (x: number, y: number, z: number): [number, number, number] => [x, y, z]
+const normal = (x: number, y: number, z: number): [number, number, number] => [x, y, z]
+
+describe('InteractionController', () => {
+  it('a gesture grab-twist-release commits one move', () => {
+    const { events } = run([
+      { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(1, 0, 0), atMs: 0 },
+      { kind: 'TWIST', totalAngle: 88 },
+      { kind: 'RELEASE', atMs: 400 },
+    ])
+    expect(moves(events)).toEqual(['R'])
+  })
+
+  it('mouse and gesture paths produce the identical move', () => {
+    // This is the guarantee the whole adapter design exists for: CI drives the
+    // mouse path, and that stands in for the gesture path it cannot drive.
+    const gesture = run([
+      { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 0 },
+      { kind: 'TWIST', totalAngle: 90 },
+      { kind: 'RELEASE', atMs: 300 },
+    ])
+    const mouse = run([
+      {
+        kind: 'DRAG',
+        // Same physical action as the gesture above: grab the top layer and
+        // turn it. Dragging across the FRONT face along +x rotates about y.
+        drag: { hitNormal: normal(0, 0, 1), slot: slot(1, 1, 1), dragScreen: [40, 0], axisScreenDirs },
+      },
+    ])
+    expect(moves(gesture.events)).toEqual(['U'])
+    expect(moves(mouse.events)).toEqual(['U'])
+  })
+
+  it('twisting without a grab does nothing', () => {
+    const { events } = run([{ kind: 'TWIST', totalAngle: 90 }, { kind: 'RELEASE', atMs: 10 }])
+    expect(events).toEqual([])
+  })
+
+  it('a release short of a snap angle commits nothing', () => {
+    const { events } = run([
+      { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(1, 0, 0), atMs: 0 },
+      { kind: 'TWIST', totalAngle: 20 },
+      { kind: 'RELEASE', atMs: 200 },
+    ])
+    expect(moves(events)).toEqual([])
+  })
+
+  it('a double turn becomes a single 180 degree move', () => {
+    const { events } = run([
+      { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(1, 0, 0), atMs: 0 },
+      { kind: 'TWIST', totalAngle: 181 },
+      { kind: 'RELEASE', atMs: 400 },
+    ])
+    expect(moves(events)).toEqual(['R2'])
+  })
+
+  it('twisting the other way gives the inverse move', () => {
+    const { events } = run([
+      { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(1, 0, 0), atMs: 0 },
+      { kind: 'TWIST', totalAngle: -90 },
+      { kind: 'RELEASE', atMs: 400 },
+    ])
+    expect(moves(events)).toEqual(["R'"])
+  })
+
+  it('emits a live preview while twisting', () => {
+    const { events } = run([
+      { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(1, 0, 0), atMs: 0 },
+      { kind: 'TWIST', totalAngle: 45 },
+    ])
+    expect(events.some((e) => e.type === 'PREVIEW')).toBe(true)
+  })
+
+  it('CANCEL abandons a grab without committing', () => {
+    const { state, events } = run([
+      { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(1, 0, 0), atMs: 0 },
+      { kind: 'TWIST', totalAngle: 90 },
+      { kind: 'CANCEL' },
+    ])
+    expect(moves(events)).toEqual([])
+    expect(state.grabbed).toBeNull()
+  })
+
+  it('passes UNDO straight through', () => {
+    expect(run([{ kind: 'UNDO' }]).events).toEqual([{ type: 'UNDO' }])
+  })
+
+  describe('twist axis modes (spec 8.5)', () => {
+    it('screen-relative uses the grabbed face normal', () => {
+      expect(twistAxisFor('screen-relative', slot(1, 1, 1), normal(0, 1, 0))).toEqual([0, 1, 0])
+    })
+
+    it('body-diagonal uses the diagonal through the grabbed corner', () => {
+      const axis = twistAxisFor('body-diagonal', slot(1, 1, 1), normal(0, 1, 0))
+      const expected = 1 / Math.sqrt(3)
+      expect(axis[0]).toBeCloseTo(expected, 6)
+      expect(axis[1]).toBeCloseTo(expected, 6)
+      expect(axis[2]).toBeCloseTo(expected, 6)
+    })
+
+    it('the two modes give different axes for the same input', () => {
+      expect(twistAxisFor('screen-relative', slot(1, -1, 1), normal(0, 1, 0))).not.toEqual(
+        twistAxisFor('body-diagonal', slot(1, -1, 1), normal(0, 1, 0)),
+      )
+    })
+  })
+
+  describe('hover-then-confirm grab mode (megaminx, spec 8.5)', () => {
+    const hoverProfile: ControllerProfile = {
+      ...DEFAULT_PROFILE,
+      grabMode: 'hover-then-confirm',
+      hoverConfirmWindowMs: 1000,
+    }
+
+    it('hovering highlights and does not grab', () => {
+      const { state, events } = run(
+        [{ kind: 'HOVER', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 0 }],
+        hoverProfile,
+      )
+      expect(events.map((e) => e.type)).toEqual(['HIGHLIGHT'])
+      expect(state.grabbed).toBeNull()
+    })
+
+    it('hover then pinch inside the window grabs', () => {
+      const { state } = run(
+        [
+          { kind: 'HOVER', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 0 },
+          { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 500 },
+        ],
+        hoverProfile,
+      )
+      expect(state.grabbed).not.toBeNull()
+    })
+
+    it('hover then pinch after the window expires does not grab', () => {
+      const { state, events } = run(
+        [
+          { kind: 'HOVER', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 0 },
+          { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 5000 },
+        ],
+        hoverProfile,
+      )
+      expect(state.grabbed).toBeNull()
+      expect(events.map((e) => e.type)).toContain('CLEAR_HIGHLIGHT')
+    })
+
+    it('a pinch with no hover at all does not grab', () => {
+      const { state } = run(
+        [{ kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 0 }],
+        hoverProfile,
+      )
+      expect(state.grabbed).toBeNull()
+    })
+
+    it('instant mode ignores hover and grabs directly', () => {
+      const { state, events } = run([
+        { kind: 'HOVER', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 0 },
+        { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 5000 },
+      ])
+      expect(events.map((e) => e.type)).not.toContain('HIGHLIGHT')
+      expect(state.grabbed).not.toBeNull()
+    })
+  })
+
+  it('maps gesture FSM events onto controller intents', () => {
+    const ctx = { slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 5 }
+    expect(intentFromGestureEvent({ type: 'GRAB', at: { x: 0, y: 0, z: 0 } }, ctx)?.kind).toBe('GRAB')
+    expect(intentFromGestureEvent({ type: 'TWIST', angleDelta: 5, totalAngle: 90 }, ctx)?.kind).toBe('TWIST')
+    expect(intentFromGestureEvent({ type: 'COMMIT', snappedAngle: 90, rawAngle: 88 }, ctx)?.kind).toBe('RELEASE')
+    expect(intentFromGestureEvent({ type: 'RELEASE' }, ctx)?.kind).toBe('CANCEL')
+    expect(intentFromGestureEvent({ type: 'ORBIT', dx: 1, dy: 1 }, ctx)).toBeNull()
+  })
+})
