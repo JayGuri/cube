@@ -35,8 +35,21 @@ describe('cube3 plugin', () => {
     })
   })
 
-  it('solve() is an explicit not-implemented until Phase 2, not a silent no-op', async () => {
+  it('solve() returns moves that actually solve a scrambled cube', async () => {
     const plugin = await createCube3Plugin()
-    await expect(plugin.solve(plugin.createInitialState())).rejects.toThrow(/Phase 2/)
+    let state = plugin.createInitialState()
+    const scramble = await plugin.scramble()
+    for (const m of scramble) state = plugin.applyMove(state, m)
+    expect(plugin.isSolved(state)).toBe(false)
+
+    const solution = await plugin.solve(state, scramble)
+    expect(solution.length).toBeGreaterThan(0)
+    for (const m of solution) state = plugin.applyMove(state, m)
+    expect(plugin.isSolved(state)).toBe(true)
+  }, 60_000)
+
+  it('solve() on an already-solved cube returns no moves', async () => {
+    const plugin = await createCube3Plugin()
+    await expect(plugin.solve(plugin.createInitialState(), [])).resolves.toEqual([])
   })
 })

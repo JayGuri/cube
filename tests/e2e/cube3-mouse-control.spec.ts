@@ -42,8 +42,20 @@ test('scramble unsolves and undo walks back one move', async ({ page }) => {
   await expect(page.getByTestId('move-count')).not.toHaveText(before!)
 })
 
-test('Solve reports the Phase 2 gap instead of failing silently', async ({ page }) => {
+test('Scramble then Solve returns the cube to solved', async ({ page }) => {
   await page.goto('/play/cube3')
+  await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
+
+  await page.getByRole('button', { name: /scramble/i }).click()
+  await expect(page.getByTestId('solved-status')).toHaveText('Scrambled')
+
   await page.getByRole('button', { name: /solve/i }).click()
-  await expect(page.getByText(/Phase 2/)).toBeVisible()
+  await expect(page.getByTestId('solved-status')).toHaveText('Solved', { timeout: 30_000 })
+})
+
+test('the solver is warmed at startup, not on first Solve press', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('app')).toHaveAttribute('data-solver-ready', 'true', {
+    timeout: 30_000,
+  })
 })

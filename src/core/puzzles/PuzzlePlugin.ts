@@ -85,7 +85,10 @@ export interface PuzzlePlugin {
   applyMove(state: PuzzleState, move: Move): PuzzleState
   isSolved(state: PuzzleState): boolean
   scramble(): Promise<Move[]>
-  solve(state: PuzzleState): Promise<Move[]>
+  // Takes the history as well as the state: the Kociemba implementation we
+  // use solves from the scramble algorithm, not from a facelet dump (see the
+  // Task 2.1 spike notes in core/solvers/kociembaCore.ts).
+  solve(state: PuzzleState, history: Move[]): Promise<Move[]>
 
   buildGeometry(): PuzzleMesh
   colorScheme: FaceColorMap

@@ -60,10 +60,18 @@ describe('puzzleStore', () => {
     expect(store().busy).toBe(false)
   })
 
-  it('surfaces solve() failure as an error and clears busy', async () => {
-    // cube3 solve() throws until Phase 2 -- the store must not stay stuck busy.
+  it('solve() drives the puzzle back to solved and clears busy', async () => {
+    await store().scramble()
+    expect(store().isSolved()).toBe(false)
     await store().solve()
     expect(store().busy).toBe(false)
-    expect(store().error).toMatch(/Phase 2/)
+    expect(store().error).toBeNull()
+    expect(store().isSolved()).toBe(true)
+  }, 60_000)
+
+  it('solve() on an untouched cube is a no-op, not an error', async () => {
+    await store().solve()
+    expect(store().error).toBeNull()
+    expect(store().isSolved()).toBe(true)
   })
 })

@@ -1,4 +1,5 @@
-import type { PuzzlePlugin, PuzzleState } from '../PuzzlePlugin'
+import { solveFromHistory } from '../../solvers/kociemba'
+import type { Move, PuzzlePlugin } from '../PuzzlePlugin'
 import { buildCube3Geometry, CUBE3_COLORS } from './geometry'
 import {
   applyMove,
@@ -23,10 +24,7 @@ export async function createCube3Plugin(): Promise<PuzzlePlugin> {
     applyMove,
     isSolved,
     scramble,
-    solve: async (_state: PuzzleState) => {
-      // Replaced in Phase 2 by the Kociemba worker.
-      throw new Error('cube3 solve() not implemented until Phase 2')
-    },
+    solve: async (_state, history: Move[]) => solveFromHistory(history, 90),
 
     buildGeometry: buildCube3Geometry,
     colorScheme: CUBE3_COLORS,

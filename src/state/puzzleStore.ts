@@ -98,7 +98,7 @@ export const usePuzzleStore = create<PuzzleStore>((set, get) => ({
     if (!plugin || !state) return
     set({ busy: true, error: null })
     try {
-      const moves = await plugin.solve(state)
+      const moves = await plugin.solve(state, get().moveHistory)
       let next = state
       for (const m of moves) next = plugin.applyMove(next, m)
       set({ state: next, moveHistory: [...get().moveHistory, ...moves] })
