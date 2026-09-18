@@ -1,4 +1,5 @@
 import { solveFromHistory } from '../../solvers/kociemba'
+import { cube3BeginnerLessons } from '../../tutorial/lessons/cube3Beginner'
 import type { Move, PuzzlePlugin } from '../PuzzlePlugin'
 import { buildCube3Geometry, CUBE3_COLORS } from './geometry'
 import {
@@ -37,7 +38,6 @@ export async function createCube3Plugin(): Promise<PuzzlePlugin> {
       twistAxisMode: 'screen-relative',
     },
 
-    // Filled in Phase 5.
-    tutorial: { puzzleId: 'cube3', tracks: [] },
+    tutorial: { puzzleId: 'cube3', tracks: cube3BeginnerLessons },
   }
 }

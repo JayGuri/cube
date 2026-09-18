@@ -4,9 +4,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { FACE_ORDER, INNER_GROUP } from '../core/puzzles/cube3/geometry'
 import { moveFromDrag, type Axis, type DragInput } from '../core/gestures/MouseDragAdapter'
-import type { Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
+import {
+  createControllerState,
+  DEFAULT_PROFILE,
+  handleIntent,
+  intentFromGestureEvent,
+  type ControllerState,
+} from '../core/gestures/InteractionController'
+import type { GestureTick } from '../core/gestures/useHandGestures'
+import { applyColorblindPaletteToColors } from '../core/puzzles/colorblindPalette'
+import type { GestureProfile, Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
+import { HintOverlay, type HintArrowProps } from './HintOverlay'
 
 const PLASTIC = '#14161F'
+const HIGHLIGHT = '#00D4FF'
 
 interface DragStart {
   normal: [number, number, number]
@@ -38,12 +49,38 @@ interface PiecesProps {
   onMove: (move: Move | null) => void
   interactive: boolean
   setOrbitEnabled: (enabled: boolean) => void
+  gestureTick?: GestureTick | null
+  gestureProfile?: GestureProfile
+  highlightedSlot?: [number, number, number] | null
+  setHighlightedSlot?: (slot: [number, number, number] | null) => void
+  colorblindPalette?: boolean
 }
 
-function Pieces({ plugin, mesh, state, onMove, interactive, setOrbitEnabled }: PiecesProps) {
-  const { camera } = useThree()
-  const colors = useMemo(() => plugin.faceletColors(state), [plugin, state])
+function Pieces({
+  plugin,
+  mesh,
+  state,
+  onMove,
+  interactive,
+  setOrbitEnabled,
+  gestureTick,
+  gestureProfile,
+  highlightedSlot,
+  setHighlightedSlot,
+  colorblindPalette,
+}: PiecesProps) {
+  const { camera, scene } = useThree()
+  const colors = useMemo(() => {
+    const raw = plugin.faceletColors(state)
+    if (!colorblindPalette) return raw
+    const out = new Map<string, Record<string, string>>()
+    for (const [id, faceColors] of raw) out.set(id, applyColorblindPaletteToColors(faceColors))
+    return out
+  }, [plugin, state, colorblindPalette])
   const drag = useRef<DragStart | null>(null)
+  const controllerState = useRef<ControllerState>(createControllerState())
+  const lastSeq = useRef(-1)
+  const raycaster = useRef(new THREE.Raycaster())
 
   // pointerup is bound to the window, not to the meshes: a turn drag routinely
   // ends off the piece it started on (or off the canvas entirely), and an r3f
@@ -86,14 +123,64 @@ function Pieces({ plugin, mesh, state, onMove, interactive, setOrbitEnabled }: P
     }
   }
 
+  // Task 4.5: raycast from the gesture cursor and route FSM events through the
+  // same InteractionController the mouse path informally mirrors, so both
+  // input paths commit through the same move semantics.
+  useEffect(() => {
+    if (!gestureTick || !interactive || gestureTick.seq === lastSeq.current) return
+    lastSeq.current = gestureTick.seq
+    const profile = { ...DEFAULT_PROFILE, ...gestureProfile }
+
+    for (const event of gestureTick.events) {
+      let hit: { slot: [number, number, number]; hitNormal: [number, number, number] } | null = null
+      if (gestureTick.cursor && (event.type === 'GRAB' || event.type === 'ANCHOR_HOLD')) {
+        const ndc = new THREE.Vector2(gestureTick.cursor.x * 2 - 1, -(gestureTick.cursor.y * 2 - 1))
+        raycaster.current.setFromCamera(ndc, camera)
+        const intersections = raycaster.current.intersectObjects(scene.children, true)
+        const first = intersections.find((i) => i.object.userData?.slot)
+        if (first) {
+          const n = first.face?.normal
+          hit = {
+            slot: first.object.userData.slot,
+            hitNormal: n ? [Math.round(n.x), Math.round(n.y), Math.round(n.z)] : [0, 1, 0],
+          }
+        }
+      }
+
+      const intent = intentFromGestureEvent(event, {
+        slot: hit?.slot ?? [0, 0, 0],
+        hitNormal: hit?.hitNormal ?? [0, 1, 0],
+        atMs: gestureTick.seq,
+      })
+      if (!intent) continue
+      // A GRAB with no raycast hit under the fingertip must not silently grab
+      // whatever the controller was last pointed at.
+      if (intent.kind === 'GRAB' && !hit) continue
+
+      const result = handleIntent(controllerState.current, intent, profile)
+      controllerState.current = result.nextState
+      for (const ev of result.events) {
+        if (ev.type === 'MOVE') onMove(ev.move)
+        if (ev.type === 'HIGHLIGHT') setHighlightedSlot?.(ev.slot)
+        if (ev.type === 'CLEAR_HIGHLIGHT') setHighlightedSlot?.(null)
+      }
+    }
+  }, [gestureTick, interactive, camera, scene, onMove, gestureProfile, setHighlightedSlot])
+
   return (
     <group>
       {mesh.pieces.map((piece) => {
         const faceColors = colors.get(piece.pieceId) ?? {}
+        const isHighlighted =
+          highlightedSlot &&
+          highlightedSlot[0] === piece.slot[0] &&
+          highlightedSlot[1] === piece.slot[1] &&
+          highlightedSlot[2] === piece.slot[2]
         return (
           <mesh
             key={piece.pieceId}
             geometry={piece.geometry}
+            userData={{ slot: piece.slot }}
             onPointerDown={(e) => handleDown(e, piece.slot)}
           >
             {FACE_ORDER.map((face, i) => (
@@ -101,6 +188,8 @@ function Pieces({ plugin, mesh, state, onMove, interactive, setOrbitEnabled }: P
                 key={face}
                 attach={`material-${i}`}
                 color={faceColors[face] ?? PLASTIC}
+                emissive={isHighlighted ? HIGHLIGHT : '#000000'}
+                emissiveIntensity={isHighlighted ? 0.4 : 0}
                 roughness={0.35}
                 metalness={0.05}
               />
@@ -124,6 +213,11 @@ export interface PuzzleCanvasProps {
   // Preview mode renders a still, non-interactive thumbnail.
   interactive?: boolean
   className?: string
+  // Task 4.5: live gesture events + cursor, from useHandGestures.
+  gestureTick?: GestureTick | null
+  gestureProfile?: GestureProfile
+  hintArrow?: HintArrowProps | null
+  colorblindPalette?: boolean
 }
 
 export function PuzzleCanvas({
@@ -132,11 +226,16 @@ export function PuzzleCanvas({
   onMove,
   interactive = true,
   className,
+  gestureTick,
+  gestureProfile,
+  hintArrow,
+  colorblindPalette,
 }: PuzzleCanvasProps) {
   const mesh = useMemo(() => plugin.buildGeometry(), [plugin])
   // Raycasting only works once the renderer exists; tests and any future
   // loading state need a real signal for that rather than a guessed delay.
   const [ready, setReady] = useState(false)
+  const [highlightedSlot, setHighlightedSlot] = useState<[number, number, number] | null>(null)
   const controls = useRef<{ enabled: boolean } | null>(null)
   const setOrbitEnabled = (enabled: boolean) => {
     if (controls.current) controls.current.enabled = enabled
@@ -160,7 +259,13 @@ export function PuzzleCanvas({
           onMove={onMove}
           interactive={interactive}
           setOrbitEnabled={setOrbitEnabled}
+          gestureTick={gestureTick}
+          gestureProfile={gestureProfile}
+          highlightedSlot={highlightedSlot}
+          setHighlightedSlot={setHighlightedSlot}
+          colorblindPalette={colorblindPalette}
         />
+        {hintArrow && <HintOverlay axis={hintArrow.axis} direction={hintArrow.direction} />}
         <OrbitControls
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ref={controls as any}
