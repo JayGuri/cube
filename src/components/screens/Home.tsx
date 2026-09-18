@@ -26,9 +26,14 @@ export function Home() {
               Solve twisty puzzles with your hands. Pick a puzzle to start.
             </p>
           </div>
-          <Link to="/settings" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
-            Settings
-          </Link>
+          <div className="flex gap-4">
+            <Link to="/trainer" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
+              Algorithm Trainer
+            </Link>
+            <Link to="/settings" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
+              Settings
+            </Link>
+          </div>
         </div>
 
         <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

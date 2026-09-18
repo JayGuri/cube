@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 import { Academy } from './components/screens/Academy'
+import { AlgorithmTrainer } from './components/screens/AlgorithmTrainer'
 import { Calibration } from './components/screens/Calibration'
 import { FreePlay } from './components/screens/FreePlay'
 import { Home } from './components/screens/Home'
@@ -36,6 +37,7 @@ function App() {
           <Route path="/academy/:puzzleId" element={<Academy />} />
           <Route path="/academy/:puzzleId/:trackName" element={<LessonRunner />} />
           <Route path="/calibration" element={<Calibration />} />
+          <Route path="/trainer" element={<AlgorithmTrainer />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </div>
