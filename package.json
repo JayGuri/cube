@@ -12,11 +12,17 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "@tailwindcss/vite": "^4.3.3",
     "cubing": "^0.56.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "tailwindcss": "^4.3.3"
+    "react": "~19.2.0",
+    "react-dom": "~19.2.0",
+    "react-router-dom": "^7.18.4",
+    "tailwindcss": "^4.3.3",
+    "three": "^0.186.0",
+    "three-bvh-csg": "^0.0.18",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -25,6 +31,7 @@
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.1",
     "jsdom": "^29.1.1",
     "oxlint": "^1.81.0",

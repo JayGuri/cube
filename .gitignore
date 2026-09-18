@@ -33,3 +33,6 @@ dist-ssr
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Playwright artifacts
+test-results/
