@@ -9,6 +9,7 @@ export const PUZZLE_REGISTRY: Partial<Record<PuzzleId, () => Promise<PuzzlePlugi
   pyraminx: async () => (await import('./pyraminx')).createPyraminxPlugin(),
   skewb: async () => (await import('./skewb')).createSkewbPlugin(),
   mastermorphix: async () => (await import('./mastermorphix')).createMastermorphixPlugin(),
+  megaminx: async () => (await import('./megaminx')).createMegaminxPlugin(),
 }
 
 export function isPuzzleAvailable(id: string): id is PuzzleId {

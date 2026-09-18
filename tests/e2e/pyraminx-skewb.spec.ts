@@ -30,3 +30,13 @@ test('mastermorphix loads, scrambles, and solve returns it to solved', async ({ 
   await page.getByRole('button', { name: /solve/i }).click()
   await expect(page.getByTestId('solved-status')).toHaveText('Solved', { timeout: 10_000 })
 })
+
+test('megaminx loads, scrambles, and solve returns it to solved', async ({ page }) => {
+  await page.goto('/play/megaminx')
+  await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
+  await expect(page.getByTestId('solved-status')).toHaveText('Solved')
+  await page.getByRole('button', { name: /scramble/i }).click()
+  await expect(page.getByTestId('solved-status')).toHaveText('Scrambled')
+  await page.getByRole('button', { name: /solve/i }).click()
+  await expect(page.getByTestId('solved-status')).toHaveText('Solved', { timeout: 10_000 })
+})
