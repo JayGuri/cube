@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { AVAILABLE_PUZZLE_IDS, isPuzzleAvailable, PUZZLE_REGISTRY } from './registry'
 
 describe('puzzle registry', () => {
-  it('lists cube3, pyraminx and skewb as available', () => {
-    expect(AVAILABLE_PUZZLE_IDS.sort()).toEqual(['cube3', 'pyraminx', 'skewb'].sort())
+  it('lists cube3, pyraminx, skewb and mastermorphix as available', () => {
+    expect(AVAILABLE_PUZZLE_IDS.sort()).toEqual(['cube3', 'pyraminx', 'skewb', 'mastermorphix'].sort())
   })
 
   it('isPuzzleAvailable narrows correctly', () => {
