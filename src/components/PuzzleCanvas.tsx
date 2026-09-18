@@ -2,7 +2,6 @@ import { OrbitControls } from '@react-three/drei'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { FACE_ORDER, INNER_GROUP } from '../core/puzzles/cube3/geometry'
 import { moveFromDrag, type Axis, type DragInput } from '../core/gestures/MouseDragAdapter'
 import {
   createControllerState,
@@ -70,6 +69,13 @@ function Pieces({
   colorblindPalette,
 }: PiecesProps) {
   const { camera, scene } = useThree()
+  // Material group order is derived from the plugin's own colorScheme keys,
+  // not a hardcoded cube3 face list -- assignFaceGroups() (per-puzzle
+  // geometry.ts) always numbers groups 0..N-1 in this same key order, with N
+  // the trailing interior/plastic group, so this works unchanged for any
+  // puzzle's face count.
+  const faceKeys = useMemo(() => Object.keys(plugin.colorScheme), [plugin])
+  const innerGroup = faceKeys.length
   const colors = useMemo(() => {
     const raw = plugin.faceletColors(state)
     if (!colorblindPalette) return raw
@@ -183,7 +189,7 @@ function Pieces({
             userData={{ slot: piece.slot }}
             onPointerDown={(e) => handleDown(e, piece.slot)}
           >
-            {FACE_ORDER.map((face, i) => (
+            {faceKeys.map((face, i) => (
               <meshStandardMaterial
                 key={face}
                 attach={`material-${i}`}
@@ -195,7 +201,7 @@ function Pieces({
               />
             ))}
             <meshStandardMaterial
-              attach={`material-${INNER_GROUP}`}
+              attach={`material-${innerGroup}`}
               color={PLASTIC}
               roughness={0.9}
             />

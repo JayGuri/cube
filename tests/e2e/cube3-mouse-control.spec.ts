@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 test('home lists the 3x3 and links into free play', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'HandCube' })).toBeVisible()
-  await page.getByRole('link', { name: /3x3 Cube/i }).click()
+  await expect(page.getByRole('heading', { name: '3x3 Cube' })).toBeVisible()
+  await page.getByRole('link', { name: 'Free play →' }).first().click()
   await expect(page).toHaveURL(/\/play\/cube3/)
   await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
 })

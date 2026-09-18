@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createCube3Plugin } from '../core/puzzles/cube3'
+import { PUZZLE_REGISTRY } from '../core/puzzles/registry'
 import type { Move, PuzzleId, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
 
 export interface PuzzleStore {
@@ -19,11 +19,6 @@ export interface PuzzleStore {
   isSolved: () => boolean
 }
 
-// Phase 1 ships one puzzle; Task 6.3 replaces this with the real registry.
-const LOADERS: Partial<Record<PuzzleId, () => Promise<PuzzlePlugin>>> = {
-  cube3: createCube3Plugin,
-}
-
 export const usePuzzleStore = create<PuzzleStore>((set, get) => ({
   plugin: null,
   state: null,
@@ -33,7 +28,7 @@ export const usePuzzleStore = create<PuzzleStore>((set, get) => ({
   busy: false,
 
   load: async (id) => {
-    const loader = LOADERS[id]
+    const loader = PUZZLE_REGISTRY[id]
     if (!loader) {
       set({ status: 'error', error: `unknown puzzle: ${id}` })
       return
