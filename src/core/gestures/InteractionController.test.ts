@@ -7,9 +7,11 @@ import {
   twistAxisFor,
   type ControllerEvent,
   type ControllerProfile,
+  type ControllerState,
   type InputIntent,
 } from './InteractionController'
 import type { DragInput } from './MouseDragAdapter'
+import type { GestureEvent } from './GestureRecognizer'
 
 const run = (intents: InputIntent[], profile: ControllerProfile = DEFAULT_PROFILE) => {
   let state = createControllerState()
@@ -197,7 +199,38 @@ describe('InteractionController', () => {
     expect(intentFromGestureEvent({ type: 'GRAB', at: { x: 0, y: 0, z: 0 } }, ctx)?.kind).toBe('GRAB')
     expect(intentFromGestureEvent({ type: 'TWIST', angleDelta: 5, totalAngle: 90 }, ctx)?.kind).toBe('TWIST')
     expect(intentFromGestureEvent({ type: 'COMMIT', snappedAngle: 90, rawAngle: 88 }, ctx)?.kind).toBe('RELEASE')
-    expect(intentFromGestureEvent({ type: 'RELEASE' }, ctx)?.kind).toBe('CANCEL')
+    // A plain FSM RELEASE (spring-back, no commit) still maps to the
+    // controller's own RELEASE intent, not CANCEL -- see the regression test
+    // below for why CANCEL was wrong.
+    expect(intentFromGestureEvent({ type: 'RELEASE' }, ctx)?.kind).toBe('RELEASE')
     expect(intentFromGestureEvent({ type: 'ORBIT', dx: 1, dy: 1 }, ctx)).toBeNull()
+  })
+
+  it('REGRESSION: a real gesture-driven grab+twist+commit actually turns the puzzle', () => {
+    // Reproduces a real user report: hand tracking worked (GRAB/TWIST fired)
+    // but the cube never turned. Root cause: GestureRecognizer.stepGesture
+    // pushes RELEASE, then (if the angle qualifies) COMMIT, into the SAME
+    // tick's event array -- exactly as PuzzleCanvas's bridge receives it,
+    // processing every event in that array through intentFromGestureEvent in
+    // order. This test drives that exact sequence, not a simplified one.
+    const ctx = { slot: slot(1, 1, 1), hitNormal: normal(1, 0, 0), atMs: 0 }
+    const tickEvents: GestureEvent[] = [
+      { type: 'GRAB', at: { x: 0, y: 0, z: 0 } },
+      { type: 'TWIST', angleDelta: 90, totalAngle: 90 },
+      { type: 'RELEASE' },
+      { type: 'COMMIT', snappedAngle: 90, rawAngle: 91 },
+    ]
+
+    let state: ControllerState = createControllerState()
+    const events: ControllerEvent[] = []
+    for (const gestureEvent of tickEvents) {
+      const intent = intentFromGestureEvent(gestureEvent, ctx)
+      if (!intent) continue
+      const result = handleIntent(state, intent)
+      state = result.nextState
+      events.push(...result.events)
+    }
+
+    expect(moves(events)).toEqual(['R'])
   })
 })

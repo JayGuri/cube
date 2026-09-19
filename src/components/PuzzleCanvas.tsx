@@ -120,6 +120,10 @@ function Pieces({
 
   const handleDown = (e: ThreeEvent<PointerEvent>, slot: [number, number, number]) => {
     if (!interactive) return
+    // Only the left/primary button turns a layer; right-button drags are left
+    // alone so OrbitControls (mouseButtons.RIGHT = ROTATE below) can always
+    // orbit the camera no matter where the cursor lands on the puzzle.
+    if (e.nativeEvent.button !== 0) return
     const n = e.face?.normal
     if (!n) return
     // Only the nearest piece under the cursor should start a drag, and the
@@ -309,6 +313,10 @@ export function PuzzleCanvas({
           enablePan={false}
           minDistance={6}
           maxDistance={16}
+          // Left orbits from empty space (pieces intercept left-drags to turn
+          // a layer instead); right always orbits regardless of what's under
+          // the cursor, so the camera is never stuck because a piece is there.
+          mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
         />
       </Canvas>
     </div>

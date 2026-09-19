@@ -188,7 +188,20 @@ export function handleIntent(
   return { nextState: next, events }
 }
 
-/** Translates the gesture FSM's vocabulary into controller intents. */
+/**
+ * Translates the gesture FSM's vocabulary into controller intents.
+ *
+ * Bug fixed here: the FSM's own `RELEASE` event fires on EVERY pinch release
+ * (spring-back or not), and a `COMMIT` event -- when the twist angle actually
+ * qualified -- is pushed into the SAME tick's event array immediately after
+ * it. Mapping FSM `RELEASE` to controller `CANCEL` wiped the grabbed state
+ * before the following `COMMIT` was ever processed, so `moveFromTwist` never
+ * ran and no gesture-driven move ever reached the puzzle: confirmed by a
+ * real user reporting hand tracking worked but the cube never turned. Both
+ * FSM events now map to the controller's OWN `RELEASE` intent, which already
+ * safely no-ops on a second call (moveFromTwist returns null once
+ * state.grabbed is already cleared).
+ */
 export function intentFromGestureEvent(
   event: GestureEvent,
   context: { slot: [number, number, number]; hitNormal: [number, number, number]; atMs: number },
@@ -199,9 +212,8 @@ export function intentFromGestureEvent(
     case 'TWIST':
       return { kind: 'TWIST', totalAngle: event.totalAngle }
     case 'COMMIT':
-      return { kind: 'RELEASE', atMs: context.atMs }
     case 'RELEASE':
-      return { kind: 'CANCEL' }
+      return { kind: 'RELEASE', atMs: context.atMs }
     case 'UNDO':
       return { kind: 'UNDO' }
     default:
