@@ -122,10 +122,8 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
           setGestureState(result.nextState)
 
           const actuator = pickActuator(f.hands, thresholds.fist)
-          // Landmarks are already mirrored into display space by
-          // toLandmarkFrame, so the fingertip x needs no flip here any more.
           const cursor = actuator
-            ? { x: actuator.landmarks[8].x, y: actuator.landmarks[8].y }
+            ? { x: 1 - actuator.landmarks[8].x, y: actuator.landmarks[8].y }
             : null
 
           seqRef.current += 1
