@@ -239,9 +239,20 @@ export function FreePlay() {
                 <ol className="list-decimal space-y-1 pl-4">
                   <li>Show one hand to the camera, over the face you want to turn.</li>
                   <li>Pinch thumb and index finger together and hold briefly to grab it.</li>
-                  <li>Keep pinching and twist your wrist to turn the layer.</li>
+                  <li>
+                    Keep pinching and twist your wrist -- the layer turns the way your hand moves in the
+                    preview above (it's mirrored, like a real mirror, not a video call).
+                  </li>
                   <li>Release near a quarter or half turn to commit it; release early and it springs back.</li>
                 </ol>
+                <p className="mt-2 border-t border-white/10 pt-2 font-semibold text-[#F5F5F7]">
+                  Middle slices (M / E / S)
+                </p>
+                <p className="mt-1">
+                  Grab an edge square -- not a corner, not the small centre square -- and twist the same way.
+                  That piece has no outer layer of its own, so it turns the middle slice between the two
+                  outer layers instead.
+                </p>
                 <p className="mt-2 border-t border-white/10 pt-2">
                   Open hand, no pinch: move it to orbit the camera. Two open hands: spread apart or together to
                   zoom. Two quick pinches in a row: undo the last move.
