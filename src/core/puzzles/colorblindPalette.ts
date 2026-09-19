@@ -11,7 +11,7 @@ const SUBSTITUTIONS: Record<string, string> = {
   '#009E60': '#009E73', // green -> Okabe-Ito bluish green
   '#0051BA': '#0072B2', // blue -> Okabe-Ito blue
   '#C41E3A': '#CC79A7', // red -> Okabe-Ito reddish purple (off the red/green axis)
-  '#FF5800': '#E69F00', // orange -> Okabe-Ito orange
+  '#FF8A00': '#E69F00', // orange -> Okabe-Ito orange
   '#A0A0A0': '#A0A0A0', // grey -- neutral, unchanged
   '#6F2DA8': '#6F2DA8', // purple -- already distinguishable
   '#4AA8D8': '#56B4E9', // light blue -> Okabe-Ito sky blue

@@ -28,7 +28,10 @@ export const CUBE3_COLORS: Record<Face, string> = {
   F: '#009E60',
   B: '#0051BA',
   R: '#C41E3A',
-  L: '#FF5800',
+  // Was #FF5800 (hue ~21deg, right next to red's ~350deg) -- a real user
+  // report that orange read as basically the same colour as red. Moved to a
+  // hue further round the wheel (~29deg) while staying just as saturated.
+  L: '#FF8A00',
 }
 
 function cube3Planes(): CutPlane[] {

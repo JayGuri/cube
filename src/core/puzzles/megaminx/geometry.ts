@@ -49,7 +49,7 @@ export const MEGAMINX_COLORS: Record<string, string> = {
   F2: '#C41E3A',
   F3: '#FFD500',
   F4: '#6F2DA8',
-  F5: '#FF5800',
+  F5: '#FF8A00', // was #FF5800 -- too close to red, see cube3/geometry.ts
   F6: '#0051BA',
   F7: '#4AA8D8',
   F8: '#009E60',

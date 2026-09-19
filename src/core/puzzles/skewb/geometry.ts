@@ -46,7 +46,7 @@ export const SKEWB_COLORS: Record<Face, string> = {
   F: '#009E60',
   B: '#0051BA',
   R: '#C41E3A',
-  L: '#FF5800',
+  L: '#FF8A00', // was #FF5800 -- too close to red, see cube3/geometry.ts
 }
 
 export type SkewbKind = 'corner' | 'center'
