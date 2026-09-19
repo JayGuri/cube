@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import {
   createControllerState,
   DEFAULT_PROFILE,
@@ -12,6 +12,10 @@ import {
 } from './InteractionController'
 import { moveFromDrag, type DragInput } from './MouseDragAdapter'
 import type { GestureEvent } from './GestureRecognizer'
+import { Alg } from 'cubing/alg'
+import { applyMove, createInitialState, initCube3Logic, isSolved } from '../puzzles/cube3/logic'
+import { faceletColors } from '../puzzles/cube3/sync'
+import { CUBE3_COLORS, slotId, type Face } from '../puzzles/cube3/geometry'
 
 const run = (intents: InputIntent[], profile: ControllerProfile = DEFAULT_PROFILE) => {
   let state = createControllerState()
@@ -166,6 +170,184 @@ describe('InteractionController', () => {
       // Unchanged from before this session's slice work: body-diagonal mode
       // never runs the new slice-detection branch at all (it returns early).
       expect(moves(events)).toEqual(["R'"])
+    })
+  })
+
+  describe('every outer face turns the real cube correctly by gesture (all 6, not just R/U)', () => {
+    beforeAll(async () => {
+      await initCube3Logic()
+    })
+
+    // Read directly from the real plugin (applyMove + faceletColors on a
+    // solved cube), not hand-derived: for CYCLE_UNPRIMED[X] = [a,b,c,d], a
+    // real unprimed X sends a's material to b, b's to c, c's to d, d's to a.
+    // Only R, U and F's own axis had ever been checked against real colours
+    // before this (via MouseDragAdapter's regression tests); D, L and B were
+    // only ever assumed correct by structural symmetry with their opposite
+    // face. This closes that gap for all six at once.
+    const CYCLE_UNPRIMED: Record<Face, Face[]> = {
+      U: ['B', 'R', 'F', 'L'],
+      D: ['F', 'R', 'B', 'L'],
+      L: ['B', 'U', 'F', 'D'],
+      R: ['U', 'B', 'D', 'F'],
+      F: ['U', 'R', 'D', 'L'],
+      B: ['U', 'L', 'D', 'R'],
+    }
+    const AXIS_FOR_FACE: Record<Face, [number, number, number]> = {
+      U: [0, 1, 0],
+      D: [0, -1, 0],
+      F: [0, 0, 1],
+      B: [0, 0, -1],
+      R: [1, 0, 0],
+      L: [-1, 0, 0],
+    }
+    // Builds a corner touching every given face, filling any axis neither
+    // face constrains with +1 (any real corner there works equally well).
+    const cornerWith = (faces: Face[]): [number, number, number] => {
+      const slot: [number, number, number] = [0, 0, 0]
+      for (const f of faces) {
+        const v = AXIS_FOR_FACE[f]
+        for (let i = 0; i < 3; i++) if (v[i] !== 0) slot[i] = v[i]
+      }
+      for (let i = 0; i < 3; i++) if (slot[i] === 0) slot[i] = 1
+      return slot
+    }
+
+    const OUTER: Array<{ letter: Face; slot: [number, number, number]; hitNormal: [number, number, number] }> = [
+      { letter: 'R', slot: [1, 1, 1], hitNormal: [1, 0, 0] },
+      { letter: 'U', slot: [1, 1, 1], hitNormal: [0, 1, 0] },
+      { letter: 'F', slot: [1, 1, 1], hitNormal: [0, 0, 1] },
+      { letter: 'L', slot: [-1, -1, -1], hitNormal: [-1, 0, 0] },
+      { letter: 'D', slot: [-1, -1, -1], hitNormal: [0, -1, 0] },
+      { letter: 'B', slot: [-1, -1, -1], hitNormal: [0, 0, -1] },
+    ]
+
+    it.each(OUTER)('grabbing $letter and twisting +90 commits a real, correctly-directed $letter turn', ({ letter, slot, hitNormal }) => {
+      const { events } = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      const notation = moves(events)[0]
+      expect(notation).toBeDefined()
+      expect(notation.replace(/[2']/g, '')).toBe(letter)
+
+      const isPrime = notation.endsWith("'")
+      const cycle = CYCLE_UNPRIMED[letter]
+      const f1 = cycle[1]
+      const checkCorner = cornerWith([letter, f1])
+      const after = applyMove(createInitialState(), { alg: new Alg(notation), snapAngleDeg: 90 })
+      const colors = faceletColors(after)
+      const stickerColor = colors.get(slotId(checkCorner))![f1]
+      // Unprimed sends cycle[0] -> cycle[1]; primed runs the cycle backwards.
+      const expectedSourceFace = isPrime ? cycle[2] : cycle[0]
+      expect(stickerColor, `${notation}: ${f1} sticker should now show ${expectedSourceFace}'s colour`).toBe(
+        CUBE3_COLORS[expectedSourceFace],
+      )
+      expect(isSolved(after)).toBe(false)
+    })
+
+    it.each(OUTER)('twisting the other way on $letter gives the exact inverse move', ({ slot, hitNormal }) => {
+      const plus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      const minus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: -90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(minus.events)[0]).toBe(new Alg(moves(plus.events)[0]).invert().toString())
+    })
+
+    it.each(OUTER)('a 180-degree twist on $letter gives the double-turn notation, same either direction', ({ letter, slot, hitNormal }) => {
+      const plus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: 181 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      const minus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: -181 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(plus.events)).toEqual([`${letter}2`])
+      expect(moves(minus.events)).toEqual([`${letter}2`])
+    })
+  })
+
+  describe('every middle slice turns the real cube correctly by gesture (M, E, S)', () => {
+    beforeAll(async () => {
+      await initCube3Logic()
+    })
+
+    // Read directly from the real plugin the same way as the outer-face
+    // cycles above: M's cycle matches L's exactly, E's matches D's, S's
+    // matches F's -- empirically confirming the "M follows L, E follows D, S
+    // follows F" WCA convention MouseDragAdapter's SLICE_FOR table already
+    // assumed, for the gesture path specifically.
+    const SLICES: Array<{
+      letter: string
+      slot: [number, number, number]
+      hitNormal: [number, number, number]
+      cycle: Face[]
+      checkFace: Face
+      checkSlot: [number, number, number]
+    }> = [
+      { letter: 'M', slot: [0, 1, 1], hitNormal: [0, 0, 1], cycle: ['B', 'U', 'F', 'D'], checkFace: 'U', checkSlot: [0, 1, 1] },
+      { letter: 'E', slot: [1, 0, 1], hitNormal: [0, 0, 1], cycle: ['F', 'R', 'B', 'L'], checkFace: 'R', checkSlot: [1, 0, 1] },
+      { letter: 'S', slot: [1, 1, 0], hitNormal: [0, 1, 0], cycle: ['U', 'R', 'D', 'L'], checkFace: 'R', checkSlot: [1, 1, 0] },
+    ]
+
+    it.each(SLICES)('grabbing an edge on the $letter slice and twisting +90 turns it the real, correctly-directed way', ({ letter, slot, hitNormal, cycle, checkFace, checkSlot }) => {
+      const { events } = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      const notation = moves(events)[0]
+      expect(notation).toBeDefined()
+      expect(notation.replace(/[2']/g, '')).toBe(letter)
+
+      const isPrime = notation.endsWith("'")
+      const after = applyMove(createInitialState(), { alg: new Alg(notation), snapAngleDeg: 90 })
+      const colors = faceletColors(after)
+      const stickerColor = colors.get(slotId(checkSlot))![checkFace]
+      const expectedSourceFace = isPrime ? cycle[2] : cycle[0]
+      expect(stickerColor, `${notation}: ${checkFace} sticker should now show ${expectedSourceFace}'s colour`).toBe(
+        CUBE3_COLORS[expectedSourceFace],
+      )
+      expect(isSolved(after)).toBe(false)
+    })
+
+    it.each(SLICES)('twisting the other way on the $letter slice gives the exact inverse move', ({ slot, hitNormal }) => {
+      const plus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      const minus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: -90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(minus.events)[0]).toBe(new Alg(moves(plus.events)[0]).invert().toString())
+    })
+
+    it.each(SLICES)('a 180-degree twist on the $letter slice gives the double-turn notation, same either direction', ({ letter, slot, hitNormal }) => {
+      const plus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: 181 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      const minus = run([
+        { kind: 'GRAB', slot, hitNormal, atMs: 0 },
+        { kind: 'TWIST', totalAngle: -181 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(plus.events)).toEqual([`${letter}2`])
+      expect(moves(minus.events)).toEqual([`${letter}2`])
     })
   })
 
