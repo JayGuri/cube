@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fist, frame, hold, makeHand, openPalm, pinching } from './fixtures'
 import {
+  applySensitivity,
   createInitialGestureState,
   DEFAULT_THRESHOLDS,
   runGestureSequence,
@@ -218,5 +219,37 @@ describe('GestureRecognizer', () => {
     const strict: GestureThresholds = { ...T, pinch: 0.0001 }
     const frames = [...anchorFrames(0, 400), ...hold(() => bothHands(pinching(at(1, 0))), 433, 900)]
     expect(types(runGestureSequence(frames, strict).events)).not.toContain('GRAB')
+  })
+})
+
+describe('applySensitivity', () => {
+  it('leaves thresholds unchanged at the default 0.5 sensitivity', () => {
+    const result = applySensitivity(DEFAULT_THRESHOLDS, 0.5)
+    expect(result.pinch).toBeCloseTo(DEFAULT_THRESHOLDS.pinch, 6)
+    expect(result.fist).toBeCloseTo(DEFAULT_THRESHOLDS.fist, 6)
+    expect(result.openPalm).toBeCloseTo(DEFAULT_THRESHOLDS.openPalm, 6)
+  })
+
+  it('loosens pinch/fist and tightens open-palm as sensitivity rises', () => {
+    const loose = applySensitivity(DEFAULT_THRESHOLDS, 1)
+    expect(loose.pinch).toBeGreaterThan(DEFAULT_THRESHOLDS.pinch)
+    expect(loose.fist).toBeGreaterThan(DEFAULT_THRESHOLDS.fist)
+    expect(loose.openPalm).toBeLessThan(DEFAULT_THRESHOLDS.openPalm)
+  })
+
+  it('tightens thresholds at the lowest sensitivity', () => {
+    const strict = applySensitivity(DEFAULT_THRESHOLDS, 0)
+    expect(strict.pinch).toBeLessThan(DEFAULT_THRESHOLDS.pinch)
+  })
+
+  it('clamps out-of-range sensitivity rather than producing nonsense', () => {
+    expect(applySensitivity(DEFAULT_THRESHOLDS, 5)).toEqual(applySensitivity(DEFAULT_THRESHOLDS, 1))
+    expect(applySensitivity(DEFAULT_THRESHOLDS, -5)).toEqual(applySensitivity(DEFAULT_THRESHOLDS, 0))
+  })
+
+  it('leaves unrelated thresholds (timing, angles) untouched', () => {
+    const result = applySensitivity(DEFAULT_THRESHOLDS, 1)
+    expect(result.pinchHoldMs).toBe(DEFAULT_THRESHOLDS.pinchHoldMs)
+    expect(result.snapAngleDeg).toBe(DEFAULT_THRESHOLDS.snapAngleDeg)
   })
 })

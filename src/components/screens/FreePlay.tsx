@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { CameraDebugOverlay } from '../CameraDebugOverlay'
 import { GestureConfidenceIndicator } from '../GestureConfidenceIndicator'
 import { PuzzleCanvas } from '../PuzzleCanvas'
+import { applySensitivity } from '../../core/gestures/GestureRecognizer'
 import { moveFromKey } from '../../core/gestures/KeyboardAdapter'
 import { useHandGestures } from '../../core/gestures/useHandGestures'
 import type { Move, PuzzleId } from '../../core/puzzles/PuzzlePlugin'
@@ -19,9 +20,13 @@ export function FreePlay() {
   const { puzzleId = 'cube3' } = useParams<{ puzzleId: string }>()
   const { plugin, state, moveHistory, status, error, busy } = usePuzzleStore()
   const { load, applyMove, reset, scramble, solve, undo, isSolved } = usePuzzleStore()
-  const thresholds = useCalibrationStore((s) => s.thresholds)
+  const calibratedThresholds = useCalibrationStore((s) => s.thresholds)
   const defaultInputMode = useSettingsStore((s) => s.defaultInputMode)
   const colorblindPalette = useSettingsStore((s) => s.colorblindPalette)
+  const gestureSensitivity = useSettingsStore((s) => s.gestureSensitivity)
+  // The Settings sensitivity slider was previously stored but never applied
+  // anywhere -- moving it did nothing. Layered on top of calibration here.
+  const thresholds = applySensitivity(calibratedThresholds, gestureSensitivity)
 
   const [inputMode, setInputMode] = useState<InputMode>(defaultInputMode)
 

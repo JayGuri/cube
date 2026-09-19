@@ -52,6 +52,25 @@ export interface GestureThresholds {
   minScore: number
 }
 
+/**
+ * Applies the user's Settings > Gesture sensitivity slider (0..1, default
+ * 0.5) to a base set of thresholds, loosening pinch/fist/open-palm detection
+ * as sensitivity rises. Found while manually checking Settings: the slider
+ * was stored and displayed but never actually consumed anywhere, so moving
+ * it did nothing -- this is what the FreePlay screen calls to fix that.
+ */
+export function applySensitivity(base: GestureThresholds, sensitivity: number): GestureThresholds {
+  const s = Math.max(0, Math.min(1, sensitivity))
+  // 0 -> 0.7x (stricter), 0.5 -> 1x (unchanged), 1 -> 1.3x (loosest).
+  const scale = 0.7 + s * 0.6
+  return {
+    ...base,
+    pinch: base.pinch * scale,
+    fist: base.fist * scale,
+    openPalm: base.openPalm / scale,
+  }
+}
+
 export const DEFAULT_THRESHOLDS: GestureThresholds = {
   pinch: 0.28,
   fist: 0.95,
