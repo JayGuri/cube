@@ -1,7 +1,7 @@
 import { Alg } from 'cubing/alg'
 import type { Move } from '../puzzles/PuzzlePlugin'
 import type { Axis, DragInput } from './MouseDragAdapter'
-import { moveFromDrag } from './MouseDragAdapter'
+import { moveFromDrag, SLICE_FOR } from './MouseDragAdapter'
 import type { GestureEvent } from './GestureRecognizer'
 
 // One controller, several input adapters (spec 8.6). Mouse, gesture and keyboard
@@ -87,6 +87,25 @@ export function twistAxisFor(
   return hitNormal
 }
 
+// `steps` counts quarter turns of the raw physical twist about the POSITIVE
+// puzzle axis. This used to go straight into `turns` with no correction at
+// all, which (a) never matched cubing.js's real WCA notation, for the same
+// reason documented on moveFromDrag's turnSign (a real unprimed face turn is
+// the OPPOSITE sense from the raw physical rotation), and (b) never
+// distinguished a positive-side face (R/U/F) from its negative-side partner
+// (L/D/B), which are defined in opposite senses along the same axis -- so
+// even by luck, at most one side of any axis could ever have come out right.
+// Both corrections mirror moveFromDrag's `turnSign` exactly, which is what
+// the "mouse and gesture paths produce the identical move" test guarantees.
+function outerTurn(axis: Axis, layer: number, steps: number, profile: ControllerProfile): Move | null {
+  const letter = FACE_FOR[axis][layer > 0 ? 'positive' : 'negative']
+  const turnSign = layer > 0 ? -1 : 1
+  const turns = (((turnSign * steps) % 4) + 4) % 4
+  if (turns === 0) return null
+  const notation = turns === 1 ? letter : turns === 2 ? `${letter}2` : `${letter}'`
+  return { alg: new Alg(notation), snapAngleDeg: profile.snapAngleDeg }
+}
+
 function moveFromTwist(
   slot: [number, number, number],
   hitNormal: [number, number, number],
@@ -96,29 +115,63 @@ function moveFromTwist(
   const steps = Math.round(totalAngle / profile.snapAngleDeg)
   if (steps === 0) return null
 
-  const axisVector = twistAxisFor(profile.twistAxisMode, slot, hitNormal)
-  const absolute = axisVector.map(Math.abs)
-  const axis = AXES[absolute.indexOf(Math.max(...absolute))]
-  const layer = slot[AXIS_INDEX[axis]]
-  if (layer === 0) return null // slice turns are the mouse adapter's business
+  if (profile.twistAxisMode === 'body-diagonal') {
+    const axisVector = twistAxisFor(profile.twistAxisMode, slot, hitNormal)
+    const absolute = axisVector.map(Math.abs)
+    const axis = AXES[absolute.indexOf(Math.max(...absolute))]
+    const layer = slot[AXIS_INDEX[axis]]
+    if (layer === 0) return null
+    return outerTurn(axis, layer, steps, profile)
+  }
 
-  const letter = FACE_FOR[axis][layer > 0 ? 'positive' : 'negative']
-  // `steps` counts quarter turns of the raw physical twist about the POSITIVE
-  // puzzle axis. This previously went straight into `turns` with no
-  // correction at all, which (a) never matched cubing.js's real WCA
-  // notation, for the same reason documented on moveFromDrag's turnSign
-  // (a real unprimed face turn is the OPPOSITE sense from the raw physical
-  // rotation), and (b) never distinguished a positive-side face (R/U/F) from
-  // its negative-side partner (L/D/B), which are defined in opposite senses
-  // along the same axis -- so even by luck, at most one side of any axis
-  // could ever have come out right. Both corrections mirror moveFromDrag's
-  // `turnSign` exactly, which is what the "mouse and gesture paths produce
-  // the identical move" test below exists to guarantee.
-  const turnSign = layer > 0 ? -1 : 1
+  // screen-relative: normally you turn the very face you grabbed, rolling
+  // your wrist like a dial held flush against it. But a real cube has no
+  // face to grab for a middle slice (M/E/S) either -- you grab one of the
+  // pieces the slice is made of, from an adjacent face, same as here: if the
+  // piece you grabbed sits in the middle row/column along one of the OTHER
+  // two axes (an edge or centre piece, not a corner), it has no outer layer
+  // of its own to turn there at all, so twisting it turns that middle slice
+  // instead. Gated to exact integer cube3-style slots (-1/0/1): pyraminx,
+  // megaminx etc. report arbitrary float centroids as their slot here, which
+  // realistically never land on exactly 0, but this makes that safety
+  // explicit rather than accidental -- those puzzles have no M/E/S notation
+  // to produce in the first place.
+  const isCubicSlot = slot.every((v) => Number.isInteger(v) && Math.abs(v) <= 1)
+  const faceAxis = AXES[hitNormal.map(Math.abs).indexOf(Math.max(...hitNormal.map(Math.abs)))]
+  const inPlane = AXES.filter((a) => a !== faceAxis)
+  // A face CENTRE piece has both in-plane axes at 0 -- ambiguous between the
+  // two slices that cross there, so it must NOT silently pick one by
+  // iteration order (a real bug this exact case caught: it always resolved
+  // to whichever axis came first in AXES). Only an edge piece, with exactly
+  // one of the two at 0, unambiguously names its slice; a centre piece keeps
+  // grabbing "the whole face", same as it always has.
+  const zeroAxes = isCubicSlot ? inPlane.filter((a) => slot[AXIS_INDEX[a]] === 0) : []
+  const sliceAxis = zeroAxes.length === 1 ? zeroAxes[0] : undefined
+
+  if (!sliceAxis) {
+    const layer = slot[AXIS_INDEX[faceAxis]]
+    if (layer === 0) return null
+    return outerTurn(faceAxis, layer, steps, profile)
+  }
+
+  // Same right-handed-triple handedness rule moveFromDrag's turnSign uses for
+  // its own slice case (see MouseDragAdapter.ts), with the grabbed face and
+  // its own sign standing in for faceAxis/faceSign there. A twist has no
+  // separate "drag axis" signal the way a 2D drag does, so the one axis left
+  // unused (neither the grabbed face's own axis nor the slice axis) plays
+  // that role instead, and the twist's own sign -- already folded into
+  // `steps` -- plays the role dragAlong's sign played there.
+  const faceSign = Math.sign(hitNormal[AXIS_INDEX[faceAxis]]) || 1
+  const dragAxis = AXES.find((a) => a !== faceAxis && a !== sliceAxis)!
+  const order = [faceAxis, dragAxis, sliceAxis].map((a) => AXIS_INDEX[a])
+  const evenPermutation = (order[0] + 1) % 3 === order[1] && (order[1] + 1) % 3 === order[2]
+  const handedness = evenPermutation ? 1 : -1
+  const geometricSign = -faceSign * handedness
+  const slice = SLICE_FOR[sliceAxis]
+  const turnSign = slice.followsNegative ? -geometricSign : geometricSign
   const turns = (((turnSign * steps) % 4) + 4) % 4
   if (turns === 0) return null
-
-  const notation = turns === 1 ? letter : turns === 2 ? `${letter}2` : `${letter}'`
+  const notation = turns === 1 ? slice.letter : turns === 2 ? `${slice.letter}2` : `${slice.letter}'`
   return { alg: new Alg(notation), snapAngleDeg: profile.snapAngleDeg }
 }
 

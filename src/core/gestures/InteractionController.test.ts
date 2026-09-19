@@ -10,7 +10,7 @@ import {
   type ControllerState,
   type InputIntent,
 } from './InteractionController'
-import type { DragInput } from './MouseDragAdapter'
+import { moveFromDrag, type DragInput } from './MouseDragAdapter'
 import type { GestureEvent } from './GestureRecognizer'
 
 const run = (intents: InputIntent[], profile: ControllerProfile = DEFAULT_PROFILE) => {
@@ -68,6 +68,105 @@ describe('InteractionController', () => {
     // motion commits U', not U.
     expect(moves(gesture.events)).toEqual(["U'"])
     expect(moves(mouse.events)).toEqual(["U'"])
+  })
+
+  describe('middle-slice turns (M/E/S) via gesture', () => {
+    // A real cube has no face to grab for M/E/S either -- you grab one of the
+    // pieces the slice is made of, from an adjacent face. Grabbing an EDGE
+    // piece that sits in the middle row/column of one of the OTHER two axes
+    // (not a corner) has no outer layer of its own to turn, so twisting it
+    // turns that slice instead. Each case here was cross-checked against
+    // moveFromDrag for the equivalent grab (dragging whichever screen
+    // direction makes the mouse path pick the same rotation axis) rather than
+    // hand-derived, since there is no camera in this environment to verify
+    // against a real twist -- see MouseDragAdapter.test.ts's REGRESSION test
+    // for how the underlying `followsNegative` sign was itself established.
+    it('a front-top edge (x=0) grabbed on F turns M', () => {
+      const { events } = run([
+        { kind: 'GRAB', slot: slot(0, 1, 1), hitNormal: normal(0, 0, 1), atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(events)).toEqual(["M'"])
+      const mouse = moveFromDrag({
+        hitNormal: normal(0, 0, 1),
+        slot: slot(0, 1, 1),
+        dragScreen: [0, -40], // along y, so mouse's rotationAxis is x too
+        axisScreenDirs,
+      })
+      expect(mouse!.alg.toString()).toEqual("M'")
+    })
+
+    it('a front-right edge (y=0) grabbed on F turns E', () => {
+      const { events } = run([
+        { kind: 'GRAB', slot: slot(1, 0, 1), hitNormal: normal(0, 0, 1), atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(events)).toEqual(['E'])
+      const mouse = moveFromDrag({
+        hitNormal: normal(0, 0, 1),
+        slot: slot(1, 0, 1),
+        dragScreen: [40, 0], // along x, so mouse's rotationAxis is y too
+        axisScreenDirs,
+      })
+      expect(mouse!.alg.toString()).toEqual('E')
+    })
+
+    it('a top-right edge (z=0) grabbed on U turns S', () => {
+      const { events } = run([
+        { kind: 'GRAB', slot: slot(1, 1, 0), hitNormal: normal(0, 1, 0), atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(events)).toEqual(['S'])
+      const mouse = moveFromDrag({
+        hitNormal: normal(0, 1, 0),
+        slot: slot(1, 1, 0),
+        dragScreen: [40, 0],
+        axisScreenDirs,
+      })
+      expect(mouse!.alg.toString()).toEqual('S')
+    })
+
+    it('twisting the other way inverts the slice too', () => {
+      const { events } = run([
+        { kind: 'GRAB', slot: slot(1, 1, 0), hitNormal: normal(0, 1, 0), atMs: 0 },
+        { kind: 'TWIST', totalAngle: -90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(events)).toEqual(["S'"])
+    })
+
+    it('REGRESSION: grabbing a face CENTRE stays an outer turn, not an arbitrary slice', () => {
+      // A face centre has BOTH other axes at 0 (e.g. the U centre is
+      // [0,1,0]), which is ambiguous between the two slices that cross
+      // there. An earlier version of this logic picked the first matching
+      // axis by iteration order instead of noticing the ambiguity, so
+      // grabbing a face by its centre dot -- the single most natural way to
+      // say "turn this whole face" -- silently turned a slice instead.
+      const { events } = run([
+        { kind: 'GRAB', slot: slot(0, 1, 0), hitNormal: normal(0, 1, 0), atMs: 0 },
+        { kind: 'TWIST', totalAngle: 90 },
+        { kind: 'RELEASE', atMs: 300 },
+      ])
+      expect(moves(events)).toEqual(["U'"])
+    })
+
+    it('a skewb (body-diagonal) grab is unaffected: still no slice logic runs', () => {
+      const skewbProfile: ControllerProfile = { ...DEFAULT_PROFILE, twistAxisMode: 'body-diagonal' }
+      const { events } = run(
+        [
+          { kind: 'GRAB', slot: slot(1, 1, 1), hitNormal: normal(0, 1, 0), atMs: 0 },
+          { kind: 'TWIST', totalAngle: 90 },
+          { kind: 'RELEASE', atMs: 300 },
+        ],
+        skewbProfile,
+      )
+      // Unchanged from before this session's slice work: body-diagonal mode
+      // never runs the new slice-detection branch at all (it returns early).
+      expect(moves(events)).toEqual(["R'"])
+    })
   })
 
   it('twisting without a grab does nothing', () => {
