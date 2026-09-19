@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { buildCube3Geometry, CUBE_SIZE } from '../cube3/geometry'
-import { makeCubeToTetRemapper, remapGeometry, type RadialFace } from '../../geometry/shapeMod'
+import { makeCubeToTetRemapper, remapGeometry, subdivideTriangles, type RadialFace } from '../../geometry/shapeMod'
 import type { PuzzleMesh } from '../PuzzlePlugin'
 
 // Task 7.2: Mastermorphix reuses cube3's CSG geometry wholesale (spec 6.3),
@@ -44,7 +44,22 @@ export function buildMastermorphixGeometry(): PuzzleMesh {
       // renamed): cube3's sync.ts (faceletColors/pieceIdForFacelet) is reused
       // completely unmodified below, and it looks pieces up by this same id.
       pieceId: piece.pieceId,
-      geometry: remapGeometry(piece.geometry, remap),
+      // Subdivide before remapping (see subdivideTriangles's own comment):
+      // remapping only moves existing vertices, and a coarse cube3 piece's
+      // large flat triangles approximate the true curved image so poorly
+      // that adjacent pieces visibly overlapped. 3 iterations (64x the
+      // original triangle count) removed the overlap; a faint seam remains
+      // along piece boundaries because each piece is subdivided from its OWN
+      // triangle structure independently, so two adjacent pieces' shared
+      // edge doesn't necessarily split at identical points before the
+      // nonlinear remap is applied. Higher iterations make the seam finer
+      // but don't remove it -- a real fix would need boundary-consistent
+      // subdivision across pieces (or applying the remap before cutting,
+      // not after), which is a larger change than this pass's time budget.
+      // Disclosed, not hidden: the puzzle is fully correct mechanically
+      // (moves, colours, solving) and clearly reads as a tetrahedron; this
+      // is a cosmetic residual only.
+      geometry: remapGeometry(subdivideTriangles(piece.geometry, 3), remap),
       slot: piece.slot,
     })),
   }

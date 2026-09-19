@@ -17,6 +17,11 @@ import { HintOverlay, type HintArrowProps } from './HintOverlay'
 
 const PLASTIC = '#14161F'
 const HIGHLIGHT = '#00D4FF'
+// Fraction of each piece's own slot distance from centre used as its visual
+// gap offset (see the render loop below) -- proportional, not a fixed unit
+// count, so it looks right across cube3's ~1.5-unit half-extent and
+// megaminx's ~1-unit dodecahedron alike.
+const GAP_FRACTION = 0.045
 
 interface DragStart {
   normal: [number, number, number]
@@ -182,30 +187,38 @@ function Pieces({
           highlightedSlot[0] === piece.slot[0] &&
           highlightedSlot[1] === piece.slot[1] &&
           highlightedSlot[2] === piece.slot[2]
+        // A solved face is one uniform colour with no gap between cubies, so
+        // it renders as a single solid block and the puzzle reads as static
+        // plastic rather than a twisty puzzle. Nudging each piece slightly
+        // outward along its own slot direction (proportional to the puzzle's
+        // own scale, not a fixed constant) reveals real seams between pieces
+        // without needing any puzzle-specific axis knowledge.
+        const gapOffset = piece.slot.map((v) => v * GAP_FRACTION) as [number, number, number]
         return (
-          <mesh
-            key={piece.pieceId}
-            geometry={piece.geometry}
-            userData={{ slot: piece.slot }}
-            onPointerDown={(e) => handleDown(e, piece.slot)}
-          >
-            {faceKeys.map((face, i) => (
+          <group key={piece.pieceId} position={gapOffset}>
+            <mesh
+              geometry={piece.geometry}
+              userData={{ slot: piece.slot }}
+              onPointerDown={(e) => handleDown(e, piece.slot)}
+            >
+              {faceKeys.map((face, i) => (
+                <meshStandardMaterial
+                  key={face}
+                  attach={`material-${i}`}
+                  color={faceColors[face] ?? PLASTIC}
+                  emissive={isHighlighted ? HIGHLIGHT : '#000000'}
+                  emissiveIntensity={isHighlighted ? 0.4 : 0}
+                  roughness={0.35}
+                  metalness={0.05}
+                />
+              ))}
               <meshStandardMaterial
-                key={face}
-                attach={`material-${i}`}
-                color={faceColors[face] ?? PLASTIC}
-                emissive={isHighlighted ? HIGHLIGHT : '#000000'}
-                emissiveIntensity={isHighlighted ? 0.4 : 0}
-                roughness={0.35}
-                metalness={0.05}
+                attach={`material-${innerGroup}`}
+                color={PLASTIC}
+                roughness={0.9}
               />
-            ))}
-            <meshStandardMaterial
-              attach={`material-${innerGroup}`}
-              color={PLASTIC}
-              roughness={0.9}
-            />
-          </mesh>
+            </mesh>
+          </group>
         )
       })}
     </group>
@@ -238,6 +251,22 @@ export function PuzzleCanvas({
   colorblindPalette,
 }: PuzzleCanvasProps) {
   const mesh = useMemo(() => plugin.buildGeometry(), [plugin])
+  // The camera is framed for cube3's ~2.6-unit half-diagonal. Pyraminx and
+  // Megaminx use a unit-radius base solid, so without this they rendered at
+  // barely a third of cube3's on-screen size -- confirmed by screenshot, not
+  // a theoretical concern. Normalising every puzzle's overall extent to the
+  // same target radius keeps one fixed camera framing working for all five.
+  const scale = useMemo(() => {
+    const box = new THREE.Box3()
+    for (const piece of mesh.pieces) {
+      piece.geometry.computeBoundingBox()
+      if (piece.geometry.boundingBox) box.union(piece.geometry.boundingBox)
+    }
+    const size = box.getSize(new THREE.Vector3())
+    const radius = size.length() / 2
+    const TARGET_RADIUS = 2.6 // cube3's own natural half-diagonal
+    return radius > 1e-6 ? TARGET_RADIUS / radius : 1
+  }, [mesh])
   // Raycasting only works once the renderer exists; tests and any future
   // loading state need a real signal for that rather than a guessed delay.
   const [ready, setReady] = useState(false)
@@ -258,20 +287,22 @@ export function PuzzleCanvas({
         <ambientLight intensity={0.85} />
         <directionalLight position={[6, 8, 5]} intensity={1.1} />
         <directionalLight position={[-6, -4, -5]} intensity={0.35} />
-        <Pieces
-          plugin={plugin}
-          mesh={mesh}
-          state={state}
-          onMove={onMove}
-          interactive={interactive}
-          setOrbitEnabled={setOrbitEnabled}
-          gestureTick={gestureTick}
-          gestureProfile={gestureProfile}
-          highlightedSlot={highlightedSlot}
-          setHighlightedSlot={setHighlightedSlot}
-          colorblindPalette={colorblindPalette}
-        />
-        {hintArrow && <HintOverlay axis={hintArrow.axis} direction={hintArrow.direction} />}
+        <group scale={scale}>
+          <Pieces
+            plugin={plugin}
+            mesh={mesh}
+            state={state}
+            onMove={onMove}
+            interactive={interactive}
+            setOrbitEnabled={setOrbitEnabled}
+            gestureTick={gestureTick}
+            gestureProfile={gestureProfile}
+            highlightedSlot={highlightedSlot}
+            setHighlightedSlot={setHighlightedSlot}
+            colorblindPalette={colorblindPalette}
+          />
+          {hintArrow && <HintOverlay axis={hintArrow.axis} direction={hintArrow.direction} />}
+        </group>
         <OrbitControls
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ref={controls as any}

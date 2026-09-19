@@ -36,6 +36,10 @@ dist-ssr
 
 # Playwright artifacts
 test-results/
+.playwright-mcp/
+
+# Ad hoc debug screenshots taken while manually inspecting the running app
+/*.png
 
 # MediaPipe WASM runtime: generated from node_modules by scripts/setup-mediapipe.mjs
 public/mediapipe/wasm/
