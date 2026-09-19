@@ -110,10 +110,15 @@ describe('GestureRecognizer', () => {
     expect(state.name).toBe('GRABBING')
   })
 
-  it('does not GRAB without an anchor hand, however long the pinch is held', () => {
-    // The two-handed metaphor is the point: one hand holds, the other turns.
-    const { events } = runGestureSequence(hold(() => [pinching(at(1, 0))], 0, 900), T)
-    expect(types(events)).not.toContain('GRAB')
+  it('GRABs with a single pinching hand and no anchor', () => {
+    // Anchoring (a still fist on the other hand) is an optional stabiliser,
+    // not a requirement -- a lone hand pinching and holding must be enough to
+    // grab, since nothing on screen tells a first-time user a second hand is
+    // needed. See the comment on this branch in GestureRecognizer.ts for the
+    // real user report this fixes.
+    const { events, state } = runGestureSequence(hold(() => [pinching(at(1, 0))], 0, 900), T)
+    expect(types(events)).toContain('GRAB')
+    expect(state.name).toBe('GRABBING')
   })
 
   it('GRAB then twist then release near a snap angle commits exactly one move', () => {

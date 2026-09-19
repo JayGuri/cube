@@ -1,8 +1,9 @@
 import { OrbitControls } from '@react-three/drei'
-import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { moveFromDrag, type Axis, type DragInput } from '../core/gestures/MouseDragAdapter'
+import { parseCubeMove } from '../core/animation/parseCubeMove'
+import { moveFromDrag, AXIS_INDEX, type Axis, type DragInput } from '../core/gestures/MouseDragAdapter'
 import {
   createControllerState,
   DEFAULT_PROFILE,
@@ -20,8 +21,24 @@ const HIGHLIGHT = '#00D4FF'
 // Fraction of each piece's own slot distance from centre used as its visual
 // gap offset (see the render loop below) -- proportional, not a fixed unit
 // count, so it looks right across cube3's ~1.5-unit half-extent and
-// megaminx's ~1-unit dodecahedron alike.
-const GAP_FRACTION = 0.045
+// megaminx's ~1-unit dodecahedron alike. Widened from 0.045 on user feedback
+// that the seams read as too thin to feel like a real cube's black plastic.
+const GAP_FRACTION = 0.075
+// How long a single quarter/half turn takes to visually rotate into place.
+const MOVE_DURATION_MS = 220
+
+const AXIS_VECTOR: Record<Axis, THREE.Vector3> = {
+  x: new THREE.Vector3(1, 0, 0),
+  y: new THREE.Vector3(0, 1, 0),
+  z: new THREE.Vector3(0, 0, 1),
+}
+const IDENTITY_QUATERNION = new THREE.Quaternion()
+
+// Standard ease-in-out: starts and ends the turn gently instead of snapping
+// to/from a constant speed, which read as mechanical/jerky.
+function easeInOutQuad(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+}
 
 interface DragStart {
   normal: [number, number, number]
@@ -58,6 +75,12 @@ interface PiecesProps {
   highlightedSlot?: [number, number, number] | null
   setHighlightedSlot?: (slot: [number, number, number] | null) => void
   colorblindPalette?: boolean
+  // The move currently being visually turned, or null when nothing is
+  // animating. Colours stay on the PRE-move state until the rotation
+  // finishes, then snap to `state` and onAnimationComplete fires -- see the
+  // useFrame loop below for how the two stay in lockstep.
+  animatingMove?: Move | null
+  onAnimationComplete?: () => void
 }
 
 function Pieces({
@@ -72,6 +95,8 @@ function Pieces({
   highlightedSlot,
   setHighlightedSlot,
   colorblindPalette,
+  animatingMove,
+  onAnimationComplete,
 }: PiecesProps) {
   const { camera, scene } = useThree()
   // Material group order is derived from the plugin's own colorScheme keys,
@@ -81,13 +106,87 @@ function Pieces({
   // puzzle's face count.
   const faceKeys = useMemo(() => Object.keys(plugin.colorScheme), [plugin])
   const innerGroup = faceKeys.length
+
+  // Colours are computed from `colorState`, not the live `state` prop
+  // directly: while a move animates, `state` has already flipped (the store
+  // updates synchronously) but the pieces must keep showing the PRE-move
+  // colours until the rotation finishes, or the sticker pattern would jump to
+  // its final arrangement before the pieces visually got there.
+  const [colorState, setColorState] = useState(state)
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const onAnimationCompleteRef = useRef(onAnimationComplete)
+  onAnimationCompleteRef.current = onAnimationComplete
+
+  // Any state change NOT accompanied by an animatingMove (Reset, Undo, a
+  // scramble jump, switching puzzles) has nothing to animate toward, so it
+  // must be reflected immediately rather than waiting for a rotation that
+  // will never start.
+  useEffect(() => {
+    if (!animatingMove) setColorState(state)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, mesh])
+
   const colors = useMemo(() => {
-    const raw = plugin.faceletColors(state)
+    const raw = plugin.faceletColors(colorState)
     if (!colorblindPalette) return raw
     const out = new Map<string, Record<string, string>>()
     for (const [id, faceColors] of raw) out.set(id, applyColorblindPaletteToColors(faceColors))
     return out
-  }, [plugin, state, colorblindPalette])
+  }, [plugin, colorState, colorblindPalette])
+
+  const pieceGroupRefs = useRef(new Map<string, THREE.Group>())
+  const activeAnim = useRef<{ axis: Axis; layer: -1 | 0 | 1; angle: number; startedAt: number } | null>(null)
+  const piecesById = useMemo(() => new Map(mesh.pieces.map((p) => [p.pieceId, p])), [mesh])
+
+  // A NEW animatingMove means a move just landed in the store. Figure out
+  // whether it is one this renderer knows how to visually turn (cube3 and
+  // mastermorphix's shared R/L/U/D/F/B/M/E/S notation); anything else (the
+  // other four puzzles have their own notations) snaps instantly, same as
+  // before animation existed at all.
+  //
+  // handledMoveRef guards against React StrictMode's dev-only double-invoke
+  // of effects: without it, the same `animatingMove` object started this
+  // effect twice, and for puzzles with no animation (parsed === null) that
+  // fired onAnimationComplete twice for one move -- the second, spurious
+  // call resolved the QUEUE's promise for whichever move had since become
+  // current, letting the solve loop race ahead and re-run stale moves.
+  // Confirmed by megaminx's solve applying 117 moves instead of the expected
+  // 26 in an E2E run, only under the dev server (StrictMode is dev-only).
+  const handledMoveRef = useRef<Move | null>(null)
+  useEffect(() => {
+    if (!animatingMove || handledMoveRef.current === animatingMove) return
+    handledMoveRef.current = animatingMove
+    const parsed = parseCubeMove(animatingMove.alg.toString())
+    if (!parsed) {
+      setColorState(stateRef.current)
+      onAnimationCompleteRef.current?.()
+      return
+    }
+    activeAnim.current = { ...parsed, startedAt: performance.now() }
+  }, [animatingMove])
+
+  useFrame(() => {
+    const anim = activeAnim.current
+    if (!anim) return
+    const t = Math.min(1, (performance.now() - anim.startedAt) / MOVE_DURATION_MS)
+    const angle = anim.angle * easeInOutQuad(t)
+    const axisVector = AXIS_VECTOR[anim.axis]
+    const axisIdx = AXIS_INDEX[anim.axis]
+    for (const [pieceId, group] of pieceGroupRefs.current) {
+      const piece = piecesById.get(pieceId)
+      const inLayer = piece && piece.slot[axisIdx] === anim.layer
+      if (inLayer) group.quaternion.setFromAxisAngle(axisVector, angle)
+      else if (!group.quaternion.equals(IDENTITY_QUATERNION)) group.quaternion.identity()
+    }
+    if (t >= 1) {
+      activeAnim.current = null
+      for (const group of pieceGroupRefs.current.values()) group.quaternion.identity()
+      setColorState(stateRef.current)
+      onAnimationCompleteRef.current?.()
+    }
+  })
+
   const drag = useRef<DragStart | null>(null)
   const controllerState = useRef<ControllerState>(createControllerState())
   const lastSeq = useRef(-1)
@@ -199,7 +298,14 @@ function Pieces({
         // without needing any puzzle-specific axis knowledge.
         const gapOffset = piece.slot.map((v) => v * GAP_FRACTION) as [number, number, number]
         return (
-          <group key={piece.pieceId} position={gapOffset}>
+          <group
+            key={piece.pieceId}
+            position={gapOffset}
+            ref={(el) => {
+              if (el) pieceGroupRefs.current.set(piece.pieceId, el)
+              else pieceGroupRefs.current.delete(piece.pieceId)
+            }}
+          >
             <mesh
               geometry={piece.geometry}
               userData={{ slot: piece.slot }}
@@ -241,6 +347,11 @@ export interface PuzzleCanvasProps {
   gestureProfile?: GestureProfile
   hintArrow?: HintArrowProps | null
   colorblindPalette?: boolean
+  // The move currently animating and a callback for when it finishes turning
+  // (see Pieces above). Callers that don't pass these (Academy, the
+  // AlgorithmTrainer preview) just keep today's instant-snap behaviour.
+  animatingMove?: Move | null
+  onAnimationComplete?: () => void
 }
 
 export function PuzzleCanvas({
@@ -253,6 +364,8 @@ export function PuzzleCanvas({
   gestureProfile,
   hintArrow,
   colorblindPalette,
+  animatingMove,
+  onAnimationComplete,
 }: PuzzleCanvasProps) {
   const mesh = useMemo(() => plugin.buildGeometry(), [plugin])
   // The camera is framed for cube3's ~2.6-unit half-diagonal. Pyraminx and
@@ -281,7 +394,17 @@ export function PuzzleCanvas({
   }
 
   return (
-    <div className={className} data-testid="puzzle-canvas" data-ready={ready ? "true" : "false"}>
+    <div
+      className={className}
+      data-testid="puzzle-canvas"
+      data-ready={ready ? "true" : "false"}
+      // Right-drag orbits the camera (OrbitControls mouseButtons.RIGHT below)
+      // no matter where it starts, but the browser's native context menu
+      // popping up mid-drag interrupted that -- confirmed by a user report of
+      // camera rotation getting "stuck" partway through. Suppressing it here
+      // is what actually makes right-drag orbit reliable.
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <Canvas
         camera={{ position: [5.5, 5, 6.5], fov: 40 }}
         dpr={[1, 2]}
@@ -304,6 +427,8 @@ export function PuzzleCanvas({
             highlightedSlot={highlightedSlot}
             setHighlightedSlot={setHighlightedSlot}
             colorblindPalette={colorblindPalette}
+            animatingMove={animatingMove}
+            onAnimationComplete={onAnimationComplete}
           />
           {hintArrow && <HintOverlay axis={hintArrow.axis} direction={hintArrow.direction} />}
         </group>

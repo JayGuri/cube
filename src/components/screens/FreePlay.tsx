@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CameraDebugOverlay } from '../CameraDebugOverlay'
 import { GestureConfidenceIndicator } from '../GestureConfidenceIndicator'
@@ -18,8 +18,8 @@ type InputMode = 'mouse' | 'hands'
 
 export function FreePlay() {
   const { puzzleId = 'cube3' } = useParams<{ puzzleId: string }>()
-  const { plugin, state, moveHistory, status, error, busy } = usePuzzleStore()
-  const { load, applyMove, reset, scramble, solve, undo, isSolved } = usePuzzleStore()
+  const { plugin, state, moveHistory, status, error } = usePuzzleStore()
+  const { load, applyMove, reset, undo, isSolved } = usePuzzleStore()
   const calibratedThresholds = useCalibrationStore((s) => s.thresholds)
   const defaultInputMode = useSettingsStore((s) => s.defaultInputMode)
   const colorblindPalette = useSettingsStore((s) => s.colorblindPalette)
@@ -40,8 +40,84 @@ export function FreePlay() {
 
   const solved = status === 'ready' && isSolved()
 
+  // Moves used to apply (and jump to their final colours) the instant they
+  // arrived, which read as jerky teleporting rather than a cube turning --
+  // confirmed by a user report, and by there being no animation code at all.
+  // Every move (drag, gesture, keyboard, scramble, solve) now goes through
+  // this one queue: applied to the store immediately (so game logic/solvers
+  // keep seeing up-to-date state), but PuzzleCanvas is told which move is
+  // "in flight" and keeps rendering its pre-move colours, rotating the
+  // affected layer into place, until it reports the animation done -- only
+  // then does the next queued move start. Solve and Scramble push their
+  // whole move list through the same queue instead of applying it in one
+  // batch, which is what makes Solve visibly solve move by move.
+  const [animatingMove, setAnimatingMove] = useState<Move | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [queueError, setQueueError] = useState<string | null>(null)
+  const animResolveRef = useRef<(() => void) | null>(null)
+  const moveQueueRef = useRef<Move[]>([])
+  const processingRef = useRef(false)
+
+  const handleAnimationComplete = () => {
+    setAnimatingMove(null)
+    const resolve = animResolveRef.current
+    animResolveRef.current = null
+    resolve?.()
+  }
+
+  const applyAnimated = (move: Move) =>
+    new Promise<void>((resolve) => {
+      animResolveRef.current = resolve
+      applyMove(move)
+      setAnimatingMove(move)
+    })
+
+  const drainQueue = async () => {
+    if (processingRef.current) return
+    processingRef.current = true
+    while (moveQueueRef.current.length > 0) {
+      const move = moveQueueRef.current.shift()!
+      await applyAnimated(move)
+    }
+    processingRef.current = false
+  }
+
+  const enqueueMoves = (moves: Move[]) => {
+    moveQueueRef.current.push(...moves)
+    return drainQueue()
+  }
+
   const handleMove = (move: Move | null) => {
-    if (move) applyMove(move)
+    if (move) void enqueueMoves([move])
+  }
+
+  const handleScramble = async () => {
+    if (!plugin) return
+    setBusy(true)
+    setQueueError(null)
+    try {
+      reset()
+      const moves = await plugin.scramble()
+      await enqueueMoves(moves)
+    } catch (e) {
+      setQueueError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSolve = async () => {
+    if (!plugin || !state) return
+    setBusy(true)
+    setQueueError(null)
+    try {
+      const moves = await plugin.solve(state, moveHistory)
+      await enqueueMoves(moves)
+    } catch (e) {
+      setQueueError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   // Task 10.2: keyboard stays live regardless of inputMode (spec 8.6) --
@@ -53,11 +129,12 @@ export function FreePlay() {
       const move = moveFromKey({ key: e.key, shiftKey: e.shiftKey, altKey: e.altKey }, plugin.gestureProfile.snapAngleDeg)
       if (!move) return
       e.preventDefault()
-      applyMove(move)
+      void enqueueMoves([move])
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [status, plugin, applyMove])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, plugin])
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden bg-[#0F1117] text-[#F5F5F7]">
@@ -105,6 +182,8 @@ export function FreePlay() {
               gestureTick={inputMode === 'hands' ? gestures.tick : null}
               gestureProfile={plugin.gestureProfile}
               colorblindPalette={colorblindPalette}
+              animatingMove={animatingMove}
+              onAnimationComplete={handleAnimationComplete}
             />
 
             {inputMode === 'hands' && (
@@ -136,7 +215,7 @@ export function FreePlay() {
           </div>
 
           <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t border-white/10 px-6 py-4">
-            <button type="button" className={BUTTON} onClick={() => void scramble()} disabled={busy}>
+            <button type="button" className={BUTTON} onClick={() => void handleScramble()} disabled={busy}>
               Scramble
             </button>
             <button type="button" className={BUTTON} onClick={reset} disabled={busy}>
@@ -145,7 +224,7 @@ export function FreePlay() {
             <button type="button" className={BUTTON} onClick={undo} disabled={busy || moveHistory.length === 0}>
               Undo
             </button>
-            <button type="button" className={BUTTON} onClick={() => void solve()} disabled={busy}>
+            <button type="button" className={BUTTON} onClick={() => void handleSolve()} disabled={busy}>
               Solve
             </button>
 
@@ -159,7 +238,7 @@ export function FreePlay() {
             </span>
           </footer>
 
-          {error && <p className="px-6 pb-4 text-sm text-[#EF4444]">{error}</p>}
+          {(error || queueError) && <p className="px-6 pb-4 text-sm text-[#EF4444]">{error || queueError}</p>}
         </>
       )}
     </main>

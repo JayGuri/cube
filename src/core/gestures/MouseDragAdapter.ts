@@ -20,11 +20,13 @@ export interface DragInput {
   minDragPx?: number
 }
 
-const AXES: Axis[] = ['x', 'y', 'z']
-const AXIS_INDEX: Record<Axis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 }
+export const AXES: Axis[] = ['x', 'y', 'z']
+export const AXIS_INDEX: Record<Axis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 }
 
-// Outer-layer face letter for each axis and sign.
-const FACE_FOR: Record<Axis, { positive: string; negative: string }> = {
+// Outer-layer face letter for each axis and sign. Exported so the move
+// animator (parseCubeMove.ts) can invert this table back into an axis+layer
+// from a move's notation, without redefining the same face-letter mapping.
+export const FACE_FOR: Record<Axis, { positive: string; negative: string }> = {
   x: { positive: 'R', negative: 'L' },
   y: { positive: 'U', negative: 'D' },
   z: { positive: 'F', negative: 'B' },
@@ -32,7 +34,7 @@ const FACE_FOR: Record<Axis, { positive: string; negative: string }> = {
 
 // Middle-slice letter and whether its notation runs with or against the axis.
 // M follows L, E follows D, S follows F -- the standard WCA convention.
-const SLICE_FOR: Record<Axis, { letter: string; followsNegative: boolean }> = {
+export const SLICE_FOR: Record<Axis, { letter: string; followsNegative: boolean }> = {
   x: { letter: 'M', followsNegative: true },
   y: { letter: 'E', followsNegative: true },
   z: { letter: 'S', followsNegative: false },

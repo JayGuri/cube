@@ -227,9 +227,17 @@ export function stepGesture(
       next.twistAngle = 0
     } else if (!state.grabEmitted) {
       // A pinch only becomes a grab once it has survived the hold window, which
-      // is what stops an incidental finger brush from turning a layer. It also
-      // requires the other hand to be anchoring, per the two-handed metaphor.
-      if (frame.timestampMs - state.pinchStartMs >= t.pinchHoldMs && anchored) {
+      // is what stops an incidental finger brush from turning a layer.
+      //
+      // This used to also require the other hand to be anchoring (a fist held
+      // still), mirroring two-handed real-cube handling (spec 4.1). In
+      // practice that made single-hand pinch-and-twist -- the interaction
+      // every real user tries first, with nothing on screen suggesting a
+      // second hand is required -- silently do nothing: confirmed by a user
+      // report of hand tracking detecting landmarks but never turning the
+      // cube. Anchoring remains available (a still fist stabilises the other
+      // hand's grab) but is no longer required to GRAB.
+      if (frame.timestampMs - state.pinchStartMs >= t.pinchHoldMs) {
         events.push({ type: 'GRAB', at: palmCentre(actuator) })
         next.grabEmitted = true
         next.name = 'GRABBING'
