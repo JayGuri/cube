@@ -47,6 +47,15 @@ interface DragStart {
   y: number
 }
 
+// The subset of drei's OrbitControls ref (a three-stdlib OrbitControls
+// instance under the hood) that the gesture-driven camera nudge needs.
+interface OrbitControlsHandle {
+  enabled: boolean
+  object: THREE.Camera
+  target: THREE.Vector3
+  update: () => void
+}
+
 // Screen-space direction of each puzzle axis under the live camera, which is
 // what turns a 2D drag into a 3D rotation axis.
 function axisScreenDirs(camera: THREE.Camera): Record<Axis, [number, number]> {
@@ -81,6 +90,13 @@ interface PiecesProps {
   // useFrame loop below for how the two stay in lockstep.
   animatingMove?: Move | null
   onAnimationComplete?: () => void
+  // The gesture FSM's ORBIT/ZOOM events are camera-only concerns (an open
+  // hand moving, or two open hands moving apart/together) -- there is no
+  // puzzle Move to produce, so they bypass intentFromGestureEvent entirely
+  // and nudge the camera directly, the same way OrbitControls does for mouse
+  // drag/wheel.
+  onGestureOrbit?: (dx: number, dy: number) => void
+  onGestureZoom?: (delta: number) => void
 }
 
 function Pieces({
@@ -97,6 +113,8 @@ function Pieces({
   colorblindPalette,
   animatingMove,
   onAnimationComplete,
+  onGestureOrbit,
+  onGestureZoom,
 }: PiecesProps) {
   const { camera, scene } = useThree()
   // Material group order is derived from the plugin's own colorScheme keys,
@@ -246,6 +264,17 @@ function Pieces({
     const profile = { ...DEFAULT_PROFILE, ...gestureProfile }
 
     for (const event of gestureTick.events) {
+      // Camera-only events never reach intentFromGestureEvent -- there is no
+      // puzzle Move for "an open hand moved" or "two hands spread apart".
+      if (event.type === 'ORBIT') {
+        onGestureOrbit?.(event.dx, event.dy)
+        continue
+      }
+      if (event.type === 'ZOOM') {
+        onGestureZoom?.(event.delta)
+        continue
+      }
+
       let hit: { slot: [number, number, number]; hitNormal: [number, number, number] } | null = null
       if (gestureTick.cursor && (event.type === 'GRAB' || event.type === 'ANCHOR_HOLD')) {
         const ndc = new THREE.Vector2(gestureTick.cursor.x * 2 - 1, -(gestureTick.cursor.y * 2 - 1))
@@ -279,7 +308,17 @@ function Pieces({
         if (ev.type === 'CLEAR_HIGHLIGHT') setHighlightedSlot?.(null)
       }
     }
-  }, [gestureTick, interactive, camera, scene, onMove, gestureProfile, setHighlightedSlot])
+  }, [
+    gestureTick,
+    interactive,
+    camera,
+    scene,
+    onMove,
+    gestureProfile,
+    setHighlightedSlot,
+    onGestureOrbit,
+    onGestureZoom,
+  ])
 
   return (
     <group>
@@ -388,9 +427,48 @@ export function PuzzleCanvas({
   // loading state need a real signal for that rather than a guessed delay.
   const [ready, setReady] = useState(false)
   const [highlightedSlot, setHighlightedSlot] = useState<[number, number, number] | null>(null)
-  const controls = useRef<{ enabled: boolean } | null>(null)
+  const controls = useRef<OrbitControlsHandle | null>(null)
   const setOrbitEnabled = (enabled: boolean) => {
     if (controls.current) controls.current.enabled = enabled
+  }
+
+  // Mouse orbit/zoom are handled by OrbitControls itself (pointer/wheel
+  // events on the canvas). The gesture FSM's ORBIT/ZOOM events have no DOM
+  // pointer to synthesize, so they nudge the same camera directly -- same
+  // spherical-coordinate approach OrbitControls uses internally, clamped to
+  // the same polar/distance limits so a hand can never flip the camera
+  // upside down or fly through the puzzle. `dx`/`dy`/`delta` are per-frame
+  // deltas in the gesture's normalised [0,1] hand-tracking space, not
+  // screen pixels, so the sensitivity constants below are a reasonable
+  // starting point tuned by feel rather than measured against a real
+  // camera -- if hand-orbit feels too twitchy or too sluggish once someone
+  // can actually test it live, these are the two numbers to adjust.
+  const nudgeOrbit = (dx: number, dy: number) => {
+    const ctrl = controls.current
+    if (!ctrl) return
+    const ORBIT_SENSITIVITY = 6
+    const MIN_POLAR = 0.15
+    const MAX_POLAR = Math.PI - 0.15
+    const offset = ctrl.object.position.clone().sub(ctrl.target)
+    const spherical = new THREE.Spherical().setFromVector3(offset)
+    spherical.theta -= dx * ORBIT_SENSITIVITY
+    spherical.phi = Math.max(MIN_POLAR, Math.min(MAX_POLAR, spherical.phi - dy * ORBIT_SENSITIVITY))
+    offset.setFromSpherical(spherical)
+    ctrl.object.position.copy(ctrl.target).add(offset)
+    ctrl.object.lookAt(ctrl.target)
+    ctrl.update()
+  }
+
+  const nudgeZoom = (delta: number) => {
+    const ctrl = controls.current
+    if (!ctrl) return
+    const ZOOM_SENSITIVITY = 40
+    const offset = ctrl.object.position.clone().sub(ctrl.target)
+    const spherical = new THREE.Spherical().setFromVector3(offset)
+    spherical.radius = Math.max(6, Math.min(16, spherical.radius - delta * ZOOM_SENSITIVITY))
+    offset.setFromSpherical(spherical)
+    ctrl.object.position.copy(ctrl.target).add(offset)
+    ctrl.update()
   }
 
   return (
@@ -429,6 +507,8 @@ export function PuzzleCanvas({
             colorblindPalette={colorblindPalette}
             animatingMove={animatingMove}
             onAnimationComplete={onAnimationComplete}
+            onGestureOrbit={nudgeOrbit}
+            onGestureZoom={nudgeZoom}
           />
           {hintArrow && <HintOverlay axis={hintArrow.axis} direction={hintArrow.direction} />}
         </group>

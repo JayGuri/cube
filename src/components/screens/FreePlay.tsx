@@ -29,6 +29,11 @@ export function FreePlay() {
   const thresholds = applySensitivity(calibratedThresholds, gestureSensitivity)
 
   const [inputMode, setInputMode] = useState<InputMode>(defaultInputMode)
+  // "Show me the move or controls" -- a real user request. Hands mode had no
+  // in-app explanation of the gesture vocabulary anywhere, which is exactly
+  // why the two-handed "anchor" requirement (removed elsewhere this session)
+  // went unnoticed: a first-time user has no way to discover it themselves.
+  const [showHandsHelp, setShowHandsHelp] = useState(true)
 
   useEffect(() => {
     void load(puzzleId as PuzzleId)
@@ -210,6 +215,37 @@ export function FreePlay() {
                     {gestures.error}
                   </p>
                 )}
+              </div>
+            )}
+
+            {inputMode === 'hands' && showHandsHelp && (
+              <div
+                className="absolute left-4 top-4 w-64 rounded-lg border border-white/10 bg-[#0F1117]/90 p-3 text-xs text-[#9A9DB0] shadow-lg backdrop-blur"
+                data-testid="hands-help"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[#F5F5F7]">
+                    Solving with your hands
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowHandsHelp(false)}
+                    aria-label="Hide hand-control instructions"
+                    className="text-[#9A9DB0] hover:text-[#F5F5F7]"
+                  >
+                    ×
+                  </button>
+                </div>
+                <ol className="list-decimal space-y-1 pl-4">
+                  <li>Show one hand to the camera, over the face you want to turn.</li>
+                  <li>Pinch thumb and index finger together and hold briefly to grab it.</li>
+                  <li>Keep pinching and twist your wrist to turn the layer.</li>
+                  <li>Release near a quarter or half turn to commit it; release early and it springs back.</li>
+                </ol>
+                <p className="mt-2 border-t border-white/10 pt-2">
+                  Open hand, no pinch: move it to orbit the camera. Two open hands: spread apart or together to
+                  zoom. Two quick pinches in a row: undo the last move.
+                </p>
               </div>
             )}
           </div>
