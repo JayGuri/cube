@@ -43,16 +43,28 @@ export function parseCubeMove(notation: string): ParsedLayerTurn | null {
 
   const face = LETTER_TO_FACE[letter]
   if (face) {
-    // Inverts moveFromDrag's `notationSign = layer > 0 ? turnSign : -turnSign`.
+    // Inverts moveFromDrag's `notationSign = layer > 0 ? turnSign : -turnSign`
+    // to recover moveFromDrag's own turnSign -- but that sign describes a
+    // rotation about the POSITIVE puzzle axis via the "v = omega x r"
+    // physical convention, which is the OPPOSITE sense from what the real
+    // cubing.js/kpuzzle engine (the actual source of truth for the committed
+    // state) performs for an unprimed face letter. Confirmed empirically:
+    // applying plain "U" through the real cube3 plugin and checking which
+    // face's stickers land where showed this formula, without the leading
+    // minus, animates the INVERSE of the move that actually gets committed
+    // -- a real user report ("the animation is right, the result is U
+    // inverse"), reproduced and root-caused against the real plugin, not
+    // just re-derived on paper.
     const turnSign = face.layer > 0 ? notationSign : -notationSign
-    return { axis: face.axis, layer: face.layer, angle: turnSign * (Math.PI / 2) * steps }
+    return { axis: face.axis, layer: face.layer, angle: -turnSign * (Math.PI / 2) * steps }
   }
 
   const slice = LETTER_TO_SLICE[letter]
   if (slice) {
-    // Inverts `notationSign = slice.followsNegative ? -turnSign : turnSign`.
+    // Inverts `notationSign = slice.followsNegative ? -turnSign : turnSign`,
+    // then applies the same real-kpuzzle correction as the face case above.
     const turnSign = slice.followsNegative ? -notationSign : notationSign
-    return { axis: slice.axis, layer: 0, angle: turnSign * (Math.PI / 2) * steps }
+    return { axis: slice.axis, layer: 0, angle: -turnSign * (Math.PI / 2) * steps }
   }
 
   return null

@@ -88,7 +88,18 @@ export function moveFromDrag(input: DragInput): Move | null {
   const evenPermutation =
     (order[0] + 1) % 3 === order[1] && (order[1] + 1) % 3 === order[2]
   const handedness = evenPermutation ? 1 : -1
-  const turnSign = Math.sign(dragAlong) * faceSign * handedness
+  // The leading minus is not a typo: v = omega x r (the physical "which way a
+  // dragged point moves" relationship) gives the sign of a rotation about the
+  // POSITIVE puzzle axis, but a real cube's WCA-notation "positive/unprimed"
+  // turn (R, U, F, ...) is the rotation in the OPPOSITE sense from that --
+  // confirmed empirically by applying R/U/F through cubing.js's real kpuzzle
+  // and checking which face's stickers actually end up where (see
+  // parseCubeMove.ts, which needs the identical correction to animate the
+  // real move rather than its inverse). Without this, a mouse-dragged "U"
+  // reliably committed as U' -- a real user report, and confirmed by the
+  // animation (driven by the same omega x r reasoning) showing the intended
+  // direction while the committed state showed the opposite.
+  const turnSign = -Math.sign(dragAlong) * faceSign * handedness
 
   let letter: string
   let notationSign: number

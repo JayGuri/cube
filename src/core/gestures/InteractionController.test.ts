@@ -40,7 +40,12 @@ describe('InteractionController', () => {
       { kind: 'TWIST', totalAngle: 88 },
       { kind: 'RELEASE', atMs: 400 },
     ])
-    expect(moves(events)).toEqual(['R'])
+    // Empirically verified against the real cube3 plugin (applying R/R' via
+    // cubing.js's kpuzzle and checking which face's stickers land where):
+    // this physical twist direction commits R', not R -- see the comment on
+    // moveFromTwist's turnSign for why the raw physical rotation sign has to
+    // be corrected before it becomes real WCA notation.
+    expect(moves(events)).toEqual(["R'"])
   })
 
   it('mouse and gesture paths produce the identical move', () => {
@@ -59,8 +64,10 @@ describe('InteractionController', () => {
         drag: { hitNormal: normal(0, 0, 1), slot: slot(1, 1, 1), dragScreen: [40, 0], axisScreenDirs },
       },
     ])
-    expect(moves(gesture.events)).toEqual(['U'])
-    expect(moves(mouse.events)).toEqual(['U'])
+    // Empirically verified against the real cube3 plugin: this physical
+    // motion commits U', not U.
+    expect(moves(gesture.events)).toEqual(["U'"])
+    expect(moves(mouse.events)).toEqual(["U'"])
   })
 
   it('twisting without a grab does nothing', () => {
@@ -92,7 +99,8 @@ describe('InteractionController', () => {
       { kind: 'TWIST', totalAngle: -90 },
       { kind: 'RELEASE', atMs: 400 },
     ])
-    expect(moves(events)).toEqual(["R'"])
+    // The inverse of the R' this same slot/normal gives at +90 (see above).
+    expect(moves(events)).toEqual(['R'])
   })
 
   it('emits a live preview while twisting', () => {
@@ -231,6 +239,8 @@ describe('InteractionController', () => {
       events.push(...result.events)
     }
 
-    expect(moves(events)).toEqual(['R'])
+    // Same physical twist as the first test in this file -> same R' (see the
+    // comment there for the empirical verification against the real plugin).
+    expect(moves(events)).toEqual(["R'"])
   })
 })

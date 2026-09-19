@@ -82,4 +82,26 @@ describe('moveFromDrag', () => {
     const topFront = colors.get(slotId([0, 1, 1]))!['U' as Face]
     expect(topFront).not.toBe(CUBE3_COLORS.U)
   })
+
+  it('REGRESSION: dragging right on the front-top-right corner turns the correct real direction', () => {
+    // A real user report: this exact drag -- grab the front face at the
+    // top-right corner, drag right -- visibly animated the way they expected,
+    // but the cube committed the inverse turn. Root cause was moveFromDrag's
+    // turnSign using the raw v = omega x r physical sign instead of the
+    // opposite sense that cubing.js's real kpuzzle actually uses for an
+    // unprimed face letter (see moveFromDrag's turnSign comment). Asserting
+    // on colours (ground truth checked directly against the real cube3
+    // plugin, not re-derived from the same formula being tested) is what
+    // makes this a real regression guard rather than restating the bug.
+    const move = moveFromDrag(
+      drag({ hitNormal: [0, 0, 1], slot: [1, 1, 1], dragScreen: [40, 0] }),
+    )!
+    const state = applyMove(createInitialState(), move)
+    const colors = faceletColors(state)
+    // Dragging right should visibly slide the front-top material rightward,
+    // off the front face and onto the right face -- so the UR edge's
+    // R-facing sticker should now show green (F's colour), not its own red.
+    const urEdgeRFace = colors.get(slotId([1, 1, 0]))!['R' as Face]
+    expect(urEdgeRFace).toBe(CUBE3_COLORS.F)
+  })
 })

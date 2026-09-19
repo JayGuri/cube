@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import * as THREE from 'three'
 import { parseCubeMove } from './parseCubeMove'
 
 describe('parseCubeMove', () => {
@@ -52,5 +53,23 @@ describe('parseCubeMove', () => {
       expect(parsed.angle).not.toBe(0)
       expect(Math.abs(parsed.angle) % (Math.PI / 2)).toBeCloseTo(0, 6)
     }
+  })
+
+  it('REGRESSION: the animated direction matches the real move, not its inverse', () => {
+    // A real user report: dragging the mouse animated a turn in the direction
+    // they expected, but the committed state was the inverse move. Ground
+    // truth (independently confirmed by applying "U" through the real cube3
+    // plugin and reading which face's stickers land where): real U cycles
+    // material R -> F -> L -> B -> R. This test rotates a point sitting on
+    // the R face by parseCubeMove('U')'s exact axis/angle and checks it lands
+    // on F, which is what the render loop in PuzzleCanvas.tsx actually does
+    // every frame -- so this is the same check the eye makes, not a re-run of
+    // the formula under test.
+    const parsed = parseCubeMove('U')!
+    const axisVector = new THREE.Vector3(0, 1, 0)
+    const rPoint = new THREE.Vector3(1, 0, 0)
+    const rotated = rPoint.clone().applyAxisAngle(axisVector, parsed.angle)
+    expect(rotated.x).toBeCloseTo(0, 5)
+    expect(rotated.z).toBeCloseTo(1, 5) // now sitting on F (z = +1)
   })
 })

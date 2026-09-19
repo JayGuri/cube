@@ -103,7 +103,19 @@ function moveFromTwist(
   if (layer === 0) return null // slice turns are the mouse adapter's business
 
   const letter = FACE_FOR[axis][layer > 0 ? 'positive' : 'negative']
-  const turns = ((steps % 4) + 4) % 4
+  // `steps` counts quarter turns of the raw physical twist about the POSITIVE
+  // puzzle axis. This previously went straight into `turns` with no
+  // correction at all, which (a) never matched cubing.js's real WCA
+  // notation, for the same reason documented on moveFromDrag's turnSign
+  // (a real unprimed face turn is the OPPOSITE sense from the raw physical
+  // rotation), and (b) never distinguished a positive-side face (R/U/F) from
+  // its negative-side partner (L/D/B), which are defined in opposite senses
+  // along the same axis -- so even by luck, at most one side of any axis
+  // could ever have come out right. Both corrections mirror moveFromDrag's
+  // `turnSign` exactly, which is what the "mouse and gesture paths produce
+  // the identical move" test below exists to guarantee.
+  const turnSign = layer > 0 ? -1 : 1
+  const turns = (((turnSign * steps) % 4) + 4) % 4
   if (turns === 0) return null
 
   const notation = turns === 1 ? letter : turns === 2 ? `${letter}2` : `${letter}'`
