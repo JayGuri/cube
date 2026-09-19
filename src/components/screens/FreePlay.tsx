@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { CameraDebugOverlay } from '../CameraDebugOverlay'
 import { GestureConfidenceIndicator } from '../GestureConfidenceIndicator'
 import { PuzzleCanvas } from '../PuzzleCanvas'
+import { moveFromKey } from '../../core/gestures/KeyboardAdapter'
 import { useHandGestures } from '../../core/gestures/useHandGestures'
 import type { Move, PuzzleId } from '../../core/puzzles/PuzzlePlugin'
 import { useCalibrationStore } from '../../state/calibrationStore'
@@ -37,6 +38,21 @@ export function FreePlay() {
   const handleMove = (move: Move | null) => {
     if (move) applyMove(move)
   }
+
+  // Task 10.2: keyboard stays live regardless of inputMode (spec 8.6) --
+  // never the ONLY path, but never disabled either.
+  useEffect(() => {
+    if (status !== 'ready' || !plugin) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) return
+      const move = moveFromKey({ key: e.key, shiftKey: e.shiftKey, altKey: e.altKey }, plugin.gestureProfile.snapAngleDeg)
+      if (!move) return
+      e.preventDefault()
+      applyMove(move)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [status, plugin, applyMove])
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden bg-[#0F1117] text-[#F5F5F7]">
