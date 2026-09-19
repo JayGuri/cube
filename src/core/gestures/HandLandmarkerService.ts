@@ -52,7 +52,18 @@ export function toLandmarkFrame(
   const hands = (result.landmarks ?? []).map((landmarks, i) => {
     const category = result.handedness?.[i]?.[0]
     return {
-      landmarks: landmarks.map((p) => ({ x: p.x, y: p.y, z: p.z })),
+      // MediaPipe reports x in raw camera space (x=0 at the camera's own left),
+      // but the preview <video> is CSS-mirrored (-scale-x-100) so it reads like
+      // a real mirror -- which is what the user is actually looking at while
+      // they move their hand. A real user report: gestures turned the cube (and
+      // orbited the camera) the opposite way from their hand -- the system was
+      // "following through" the raw, unmirrored camera motion instead of
+      // mirroring it, the way the screen they're watching already does.
+      // Flipping x once here, at the single point raw landmarks enter the app,
+      // puts every downstream consumer (the gesture FSM, palmNormal/wristRoll,
+      // the raycast cursor) into that same mirrored space, instead of each one
+      // needing its own fix.
+      landmarks: landmarks.map((p) => ({ x: 1 - p.x, y: p.y, z: p.z })),
       handedness: (category?.categoryName === 'Left' ? 'Left' : 'Right') as Handedness,
       score: category?.score ?? 0,
     }
