@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { buildCube3Geometry } from '../core/puzzles/cube3/geometry'
-import { cursorToNdc } from './PuzzleCanvas'
+import { cursorToNdc } from './gestureCursor'
 
 // REGRESSION: a real user report that grabbing a layer by hand essentially
 // never worked, only camera orbit/zoom (which need no raycast hit) did.

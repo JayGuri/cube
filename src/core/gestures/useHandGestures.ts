@@ -123,7 +123,9 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
   // the real app with synthetic hand frames, since CI has no camera or hands.
   // Every step after MediaPipe's detection runs exactly as it does live.
   const processFrameRef = useRef(processFrame)
-  processFrameRef.current = processFrame
+  useEffect(() => {
+    processFrameRef.current = processFrame
+  })
   useEffect(() => {
     if (!import.meta.env.DEV || !enabled) return
     const w = window as unknown as { __handcubeInjectFrame?: (f: LandmarkFrame) => void }
@@ -144,7 +146,7 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
       if (video && service?.ready && video.readyState >= 2 && now - lastTickAtRef.current >= minIntervalMs) {
         lastTickAtRef.current = now
         const f = service.detect(video, now)
-        if (f) processFrame(f)
+        if (f) processFrameRef.current(f)
       }
       rafRef.current = requestAnimationFrame(loop)
     }
