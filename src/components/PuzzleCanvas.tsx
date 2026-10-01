@@ -13,6 +13,7 @@ import {
 } from '../core/gestures/InteractionController'
 import type { GestureTick } from '../core/gestures/useHandGestures'
 import { cursorToNdc } from './gestureCursor'
+import { MoveArrow } from './MoveArrow'
 import { applyColorblindPaletteToColors } from '../core/puzzles/colorblindPalette'
 import type { GestureProfile, Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
 
@@ -409,6 +410,9 @@ export interface PuzzleCanvasProps {
   cameraLocked?: boolean
   // Glows every piece of the layer a hand sign has selected, before it turns.
   previewLayer?: { axis: Axis; layer: number } | null
+  // Notation of the next guided-solve step: draws a curved arrow around that
+  // layer, sweeping the way it should turn. Hidden while a move animates.
+  guideMove?: string | null
 }
 
 export function PuzzleCanvas({
@@ -424,6 +428,7 @@ export function PuzzleCanvas({
   onAnimationComplete,
   cameraLocked = false,
   previewLayer = null,
+  guideMove = null,
 }: PuzzleCanvasProps) {
   const mesh = useMemo(() => plugin.buildGeometry(), [plugin])
   // The camera is framed for cube3's ~2.6-unit half-diagonal. Pyraminx and
@@ -496,6 +501,7 @@ export function PuzzleCanvas({
       data-testid="puzzle-canvas"
       data-ready={ready ? "true" : "false"}
       data-camera-locked={cameraLocked ? "true" : "false"}
+      data-guide-move={guideMove ?? ""}
       // Right-drag orbits the camera (OrbitControls mouseButtons.RIGHT below)
       // no matter where it starts, but the browser's native context menu
       // popping up mid-drag interrupted that -- confirmed by a user report of
@@ -531,6 +537,7 @@ export function PuzzleCanvas({
             onGestureOrbit={nudgeOrbit}
             onGestureZoom={nudgeZoom}
           />
+          {guideMove && !animatingMove && <MoveArrow notation={guideMove} />}
         </group>
         <OrbitControls
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

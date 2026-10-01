@@ -37,9 +37,11 @@ export function parseCubeMove(notation: string): ParsedLayerTurn | null {
   // megaminx solve take ~40s+ in the E2E suite instead of resolving each
   // move instantly like every other non-cube3 puzzle. Reject anything but
   // the three modifiers cube3/mastermorphix notation actually uses.
-  if (modifier !== '' && modifier !== "'" && modifier !== '2') return null
+  // "2'" is also a valid double turn (inverting "U2" produces it); 180
+  // degrees is 180 degrees, so it animates exactly like "2".
+  if (modifier !== '' && modifier !== "'" && modifier !== '2' && modifier !== "2'") return null
   const notationSign = modifier === "'" ? -1 : 1
-  const steps = modifier === '2' ? 2 : 1
+  const steps = modifier.startsWith('2') ? 2 : 1
 
   const face = LETTER_TO_FACE[letter]
   if (face) {

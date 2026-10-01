@@ -1,0 +1,71 @@
+import { useFrame } from '@react-three/fiber'
+import { useMemo, useRef } from 'react'
+import * as THREE from 'three'
+import { parseCubeMove } from '../core/animation/parseCubeMove'
+
+// A curved arrow wrapped around the layer the next guided move turns,
+// sweeping the way it will turn. Built from the same axis/angle the move
+// animation uses (parseCubeMove), so the arrow and the actual turn can never
+// disagree about direction.
+
+const RING_RADIUS = 2.35 // just outside a 3x3 layer's corners
+const ARC = Math.PI * 1.25
+const COLOR = '#F5B83D'
+
+export function MoveArrow({ notation }: { notation: string }) {
+  const parsed = parseCubeMove(notation)
+  const materials = useRef<Array<THREE.MeshStandardMaterial | null>>([])
+
+  const placement = useMemo(() => {
+    if (!parsed) return null
+    const axis = new THREE.Vector3(parsed.axis === 'x' ? 1 : 0, parsed.axis === 'y' ? 1 : 0, parsed.axis === 'z' ? 1 : 0)
+    return {
+      position: axis.clone().multiplyScalar(parsed.layer * 1.075),
+      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis),
+      // The arc is drawn sweeping counter-clockwise about +Z (a positive
+      // rotation); mirroring it reverses the sweep for a negative one.
+      mirror: parsed.angle < 0,
+    }
+  }, [parsed?.axis, parsed?.layer, parsed?.angle]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A gentle pulse so the eye finds it.
+  useFrame(({ clock }) => {
+    const o = 0.65 + 0.3 * Math.sin(clock.elapsedTime * 4)
+    for (const m of materials.current) if (m) m.opacity = o
+  })
+
+  if (!placement) return null
+  const head = new THREE.Vector3(Math.cos(ARC) * RING_RADIUS, Math.sin(ARC) * RING_RADIUS, 0)
+
+  return (
+    <group position={placement.position} quaternion={placement.quaternion}>
+      <group scale={[placement.mirror ? -1 : 1, 1, 1]}>
+        <mesh>
+          <torusGeometry args={[RING_RADIUS, 0.07, 10, 64, ARC]} />
+          <meshStandardMaterial
+            ref={(m) => {
+              materials.current[0] = m
+            }}
+            color={COLOR}
+            emissive={COLOR}
+            emissiveIntensity={0.7}
+            transparent
+          />
+        </mesh>
+        {/* A cone points along +Y; rotating it by the arc angle about Z lines it up with the arc's tangent. */}
+        <mesh position={head} rotation={[0, 0, ARC]}>
+          <coneGeometry args={[0.22, 0.5, 16]} />
+          <meshStandardMaterial
+            ref={(m) => {
+              materials.current[1] = m
+            }}
+            color={COLOR}
+            emissive={COLOR}
+            emissiveIntensity={0.7}
+            transparent
+          />
+        </mesh>
+      </group>
+    </group>
+  )
+}

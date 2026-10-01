@@ -1,48 +1,45 @@
 import { Alg } from 'cubing/alg'
 import type { Move } from '../puzzles/PuzzlePlugin'
-import { centroid, distance, handScale } from './landmarkMath'
+import { distance, handScale } from './landmarkMath'
 import type { Handedness, HandFrame, Landmark, LandmarkFrame } from './landmarks'
 import type { Axis } from './MouseDragAdapter'
 
-// "Signs": HandCube's primary hand-control scheme. A finger pose SELECTS a
-// layer, then moving the hand PUSHES that layer the way you want it to go.
+// "Signs": HandCube's two-handed control scheme.
 //
-// Selection is discrete (which fingers are extended, and which hand), so it
-// doesn't depend on aiming a cursor at a small target or on reading a subtle
-// wrist roll -- the two things continuous hand tracking is worst at. A pose
-// only selects once it wins a majority vote over the last few frames, so a
-// single mis-tracked frame never turns anything. Direction comes from the
-// hand's own motion, so the layer always moves the way the hand did.
+//   The POSE picks the layer.   The HAND picks the direction.
+//   Right hand = clockwise.     Left hand = counter-clockwise (prime).
+//
+// Both hands share the same nine poses, so every one of the 18 quarter turns
+// is a single, still sign -- nothing to aim, nothing to swipe, and no
+// dependence on which way the camera happens to be looking. Holding a pose
+// steady for a moment turns the layer once; relax the hand to turn again.
+//
+// Poses are read from the four fingers (the thumb is ignored: it is the least
+// reliable finger to track). The mnemonic mirrors the cube:
+//   count from the INDEX side for R, U, F   (1, 2, 3 fingers)
+//   count from the PINKY side for L, D, B   (1, 2, 3 fingers)
+//   slices: M = both ends, E = the middle two, S = all but the ring finger
 
 export type SignLayer = 'R' | 'L' | 'U' | 'D' | 'F' | 'B' | 'M' | 'E' | 'S'
 
-// Fingers in order index, middle, ring, pinky (the thumb is ignored: it is
-// the least reliable finger to track and the hardest to hold still).
-type FingerMask = string
-
-const SIGN_FOR: Record<Handedness, Record<FingerMask, SignLayer>> = {
-  Right: { '1000': 'R', '1100': 'U', '1110': 'F', '0001': 'M', '1001': 'S' },
-  Left: { '1000': 'L', '1100': 'D', '1110': 'B', '0001': 'E', '1001': 'S' },
+// Fingers in order index, middle, ring, pinky; '1' = extended.
+export const POSE_FOR: Record<SignLayer, string> = {
+  R: '1000',
+  U: '1100',
+  F: '1110',
+  L: '0001',
+  D: '0011',
+  B: '0111',
+  M: '1001',
+  E: '0110',
+  S: '1101',
 }
 
-// How each layer is pushed, seen from the default front view, and which
-// notation that push is. `positive` is the notation for a swipe right
-// (horizontal layers) or up (vertical layers). Each pairing is checked
-// against the real plugin in signGestures.test: the stickers you can see on
-// the front of that layer travel the same way the hand did.
-export const LAYER_PUSH: Record<SignLayer, { swipe: 'horizontal' | 'vertical'; positive: string; negative: string }> = {
-  U: { swipe: 'horizontal', positive: "U'", negative: 'U' },
-  E: { swipe: 'horizontal', positive: 'E', negative: "E'" },
-  D: { swipe: 'horizontal', positive: 'D', negative: "D'" },
-  R: { swipe: 'vertical', positive: 'R', negative: "R'" },
-  M: { swipe: 'vertical', positive: "M'", negative: 'M' },
-  L: { swipe: 'vertical', positive: "L'", negative: 'L' },
-  F: { swipe: 'horizontal', positive: 'F', negative: "F'" },
-  S: { swipe: 'horizontal', positive: 'S', negative: "S'" },
-  B: { swipe: 'horizontal', positive: "B'", negative: 'B' },
-}
+const LAYER_FOR_POSE: Record<string, SignLayer> = Object.fromEntries(
+  Object.entries(POSE_FOR).map(([layer, pose]) => [pose, layer as SignLayer]),
+)
 
-// Which pieces a layer turns, for the on-cube preview glow.
+// Which pieces a layer turns, for the on-cube preview.
 export const LAYER_SLICE: Record<SignLayer, { axis: Axis; layer: -1 | 0 | 1 }> = {
   R: { axis: 'x', layer: 1 },
   M: { axis: 'x', layer: 0 },
@@ -55,19 +52,24 @@ export const LAYER_SLICE: Record<SignLayer, { axis: Axis; layer: -1 | 0 | 1 }> =
   B: { axis: 'z', layer: -1 },
 }
 
-const FINGERS: Array<{ tip: number }> = [{ tip: 8 }, { tip: 12 }, { tip: 16 }, { tip: 20 }]
+const FINGER_TIPS = [8, 12, 16, 20]
 
+// ---------------------------------------------------------------------------
+// Tuning knobs. These are the numbers to adjust if signs feel too eager or too
+// sluggish once tried with a real camera -- see also Settings > Gesture
+// sensitivity, which scales the shared pinch/fist thresholds.
+// ---------------------------------------------------------------------------
 export interface SignOptions {
-  // A fingertip this many hand-scales from the wrist counts as extended.
+  // A fingertip at least this many hand-sizes from the wrist counts as
+  // extended. Lower = fingers count as "up" more easily.
   extendedRatio: number
-  // Votes needed out of the last `voteWindow` frames to select a sign.
+  // A pose is recognised once it wins this many of the last `voteWindow`
+  // frames; one badly tracked frame can never turn anything.
   voteWindow: number
   votesToSelect: number
-  // Hand travel, as a fraction of the camera frame, that commits a turn.
-  swipeDistance: number
-  // After a turn, the hand must pause this long before the next one, so the
-  // return stroke of a swipe can't be read as a second, opposite turn.
-  cooldownMs: number
+  // How long a recognised pose must be held still before the layer turns.
+  holdMs: number
+  // Ignore hands MediaPipe is less sure of than this.
   minScore: number
   // MediaPipe labels hands as if the image were mirrored; our camera frames
   // are not, so its "Left" is the user's right hand. Exposed in Settings in
@@ -79,8 +81,7 @@ export const DEFAULT_SIGN_OPTIONS: SignOptions = {
   extendedRatio: 1.4,
   voteWindow: 6,
   votesToSelect: 4,
-  swipeDistance: 0.12,
-  cooldownMs: 450,
+  holdMs: 550,
   minScore: 0.5,
   swapHands: false,
 }
@@ -90,53 +91,69 @@ export function realHandedness(label: Handedness, swapHands: boolean): Handednes
   return swapHands ? label : flipped
 }
 
-export function fingerMask(landmarks: Landmark[], extendedRatio: number): FingerMask {
+export function fingerPose(landmarks: Landmark[], extendedRatio: number): string {
   const wrist = landmarks[0]
   const scale = handScale(landmarks)
-  return FINGERS.map((f) => (distance(landmarks[f.tip], wrist) / scale > extendedRatio ? '1' : '0')).join('')
+  return FINGER_TIPS.map((tip) => (distance(landmarks[tip], wrist) / scale > extendedRatio ? '1' : '0')).join('')
 }
 
-/** The layer a single hand is signing right now, or null. */
+/** The layer a hand's pose names, or null (open hand, fist, or unassigned). */
 export function readSign(hand: HandFrame, opts: SignOptions = DEFAULT_SIGN_OPTIONS): SignLayer | null {
-  const who = realHandedness(hand.handedness, opts.swapHands)
-  return SIGN_FOR[who][fingerMask(hand.landmarks, opts.extendedRatio)] ?? null
+  return LAYER_FOR_POSE[fingerPose(hand.landmarks, opts.extendedRatio)] ?? null
 }
 
-// Palm position in the user's own left/right: raw camera x runs opposite to
-// the user's physical left/right, so it is flipped once here (the same flip
-// the raycast cursor uses). y is left as-is.
-function palmPoint(hand: HandFrame): { x: number; y: number } {
-  const c = centroid([hand.landmarks[0], hand.landmarks[5], hand.landmarks[17]])
-  return { x: 1 - c.x, y: c.y }
+/** The notation a sign makes with a given hand: right = clockwise, left = prime. */
+export function notationFor(layer: SignLayer, hand: Handedness): string {
+  return hand === 'Right' ? layer : `${layer}'`
+}
+
+/** The sign that makes a quarter turn: which hand, which layer. */
+export function signForNotation(notation: string): { hand: Handedness; layer: SignLayer } | null {
+  const m = /^([RLUDFBMES])('?)$/.exec(notation)
+  if (!m) return null
+  return { hand: m[2] ? 'Left' : 'Right', layer: m[1] as SignLayer }
+}
+
+interface HandSignState {
+  votes: Array<SignLayer | null>
+  current: SignLayer | null
+  heldSinceMs: number | null
+  // Once a pose has turned the layer it must be released (any other pose,
+  // relaxed hand, or hand out of view) before it can turn again.
+  fired: boolean
 }
 
 export interface SignState {
-  votes: Array<SignLayer | null>
-  selected: SignLayer | null
-  anchor: { x: number; y: number } | null
-  cooldownUntilMs: number
+  hands: Record<Handedness, HandSignState>
 }
+
+const emptyHand = (): HandSignState => ({ votes: [], current: null, heldSinceMs: null, fired: false })
 
 export function createSignState(): SignState {
-  return { votes: [], selected: null, anchor: null, cooldownUntilMs: 0 }
+  return { hands: { Left: emptyHand(), Right: emptyHand() } }
 }
 
-export type SignEvent =
-  | { type: 'SELECT'; layer: SignLayer }
-  | { type: 'CLEAR' }
-  | { type: 'TURN'; layer: SignLayer; move: Move }
-
-// Signed travel along the selected layer's swipe axis: + is right / up.
-function travel(state: SignState, p: { x: number; y: number }): number {
-  if (!state.selected || !state.anchor) return 0
-  return LAYER_PUSH[state.selected].swipe === 'horizontal' ? p.x - state.anchor.x : state.anchor.y - p.y
+export interface ActiveSign {
+  hand: Handedness
+  layer: SignLayer
+  notation: string
+  // 0..1 of the hold before it turns; 1 once it has turned.
+  progress: number
+  fired: boolean
 }
 
-/** -1..1 of the way to committing a turn (sign = direction), for the HUD. */
-export function swipeProgress(state: SignState, frame: LandmarkFrame, opts: SignOptions = DEFAULT_SIGN_OPTIONS) {
-  const hand = frame.hands.find((h) => h.score >= opts.minScore)
-  if (!hand || frame.timestampMs < state.cooldownUntilMs) return 0
-  return Math.max(-1, Math.min(1, travel(state, palmPoint(hand)) / opts.swipeDistance))
+export type SignEvent = { type: 'TURN'; hand: Handedness; layer: SignLayer; move: Move }
+
+/** The signs currently being held, for the HUD and the on-cube preview. */
+export function activeSigns(state: SignState, nowMs: number, opts: SignOptions = DEFAULT_SIGN_OPTIONS): ActiveSign[] {
+  const out: ActiveSign[] = []
+  for (const hand of ['Left', 'Right'] as const) {
+    const h = state.hands[hand]
+    if (!h.current || h.heldSinceMs === null) continue
+    const progress = h.fired ? 1 : Math.min(1, (nowMs - h.heldSinceMs) / opts.holdMs)
+    out.push({ hand, layer: h.current, notation: notationFor(h.current, hand), progress, fired: h.fired })
+  }
+  return out
 }
 
 function mostVoted(votes: Array<SignLayer | null>): { layer: SignLayer | null; count: number } {
@@ -148,47 +165,50 @@ function mostVoted(votes: Array<SignLayer | null>): { layer: SignLayer | null; c
   return { layer: best, count }
 }
 
+function stepHand(
+  prev: HandSignState,
+  sign: SignLayer | null,
+  nowMs: number,
+  opts: SignOptions,
+): { next: HandSignState; turn: SignLayer | null } {
+  const votes = [...prev.votes, sign].slice(-opts.voteWindow)
+  const { layer: winner, count } = mostVoted(votes)
+  const recognised = winner && count >= opts.votesToSelect ? winner : null
+
+  if (recognised !== prev.current) {
+    // A new pose (or none): restart the hold, and re-arm.
+    return { next: { votes, current: recognised, heldSinceMs: recognised ? nowMs : null, fired: false }, turn: null }
+  }
+  if (!recognised || prev.fired || prev.heldSinceMs === null) return { next: { ...prev, votes }, turn: null }
+  // Only turn on a frame where the hand is actually showing the sign right
+  // now. Recognition stays "sticky" for a couple of frames to ride out
+  // flicker, and without this a sign held almost long enough and then
+  // DROPPED could still fire on one of those frames, after the hand was gone.
+  if (sign === recognised && nowMs - prev.heldSinceMs >= opts.holdMs) {
+    return { next: { ...prev, votes, fired: true }, turn: recognised }
+  }
+  return { next: { ...prev, votes }, turn: null }
+}
+
 export function stepSigns(
   state: SignState,
   frame: LandmarkFrame,
   opts: SignOptions = DEFAULT_SIGN_OPTIONS,
 ): { next: SignState; events: SignEvent[] } {
+  const seen: Record<Handedness, SignLayer | null> = { Left: null, Right: null }
+  for (const hand of frame.hands) {
+    if (hand.score < opts.minScore) continue
+    seen[realHandedness(hand.handedness, opts.swapHands)] = readSign(hand, opts)
+  }
+
   const events: SignEvent[] = []
-  // Exactly one hand: two hands is the zoom gesture, never a sign.
-  const hands = frame.hands.filter((h) => h.score >= opts.minScore)
-  const hand = hands.length === 1 ? hands[0] : null
-  const sign = hand ? readSign(hand, opts) : null
-
-  const votes = [...state.votes, sign].slice(-opts.voteWindow)
-  const { layer: winner, count } = mostVoted(votes)
-  const next: SignState = { ...state, votes }
-
-  // A selection is sticky: it survives a stray frame or two and only
-  // changes once a different sign wins the vote, or every recent frame lost
-  // the sign (hand gone, or relaxed into a non-sign).
-  if (!hand || votes.every((v) => v === null)) {
-    if (state.selected) events.push({ type: 'CLEAR' })
-    return { next: { ...next, selected: null, anchor: null }, events }
+  const hands = { ...state.hands }
+  for (const who of ['Right', 'Left'] as const) {
+    const { next, turn } = stepHand(state.hands[who], seen[who], frame.timestampMs, opts)
+    hands[who] = next
+    if (turn) {
+      events.push({ type: 'TURN', hand: who, layer: turn, move: { alg: new Alg(notationFor(turn, who)), snapAngleDeg: 90 } })
+    }
   }
-  if (winner && count >= opts.votesToSelect && winner !== state.selected) {
-    events.push({ type: 'SELECT', layer: winner })
-    return { next: { ...next, selected: winner, anchor: palmPoint(hand) }, events }
-  }
-  if (!state.selected || !state.anchor) return { next, events }
-
-  const p = palmPoint(hand)
-  if (frame.timestampMs < state.cooldownUntilMs) {
-    // Re-anchor while cooling down, so the next swipe is measured from
-    // wherever the hand comes to rest, not from before the last one.
-    return { next: { ...next, anchor: p }, events }
-  }
-
-  const along = travel(state, p)
-  if (Math.abs(along) >= opts.swipeDistance) {
-    const push = LAYER_PUSH[state.selected]
-    const notation = along > 0 ? push.positive : push.negative
-    events.push({ type: 'TURN', layer: state.selected, move: { alg: new Alg(notation), snapAngleDeg: 90 } })
-    return { next: { ...next, anchor: p, cooldownUntilMs: frame.timestampMs + opts.cooldownMs }, events }
-  }
-  return { next, events }
+  return { next: { hands }, events }
 }

@@ -32,6 +32,10 @@ describe('parseCubeMove', () => {
     expect(double.angle).toBeCloseTo(plain.angle * 2, 6)
   })
 
+  it("REGRESSION: U2' animates as a double turn instead of snapping", () => {
+    expect(Math.abs(parseCubeMove("U2'")!.angle)).toBeCloseTo(Math.PI, 6)
+  })
+
   it('returns null for notation it does not understand (other puzzles)', () => {
     expect(parseCubeMove('u')).toBeNull() // pyraminx tip
     expect(parseCubeMove('')).toBeNull()
