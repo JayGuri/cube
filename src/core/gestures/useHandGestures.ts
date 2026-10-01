@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { HandLandmarkerService, startCamera, stopCamera } from './HandLandmarkerService'
-import { fingerCurl } from './landmarkMath'
-import type { HandFrame, LandmarkFrame } from './landmarks'
+import type { LandmarkFrame } from './landmarks'
 import {
   createInitialGestureState,
   stepGesture,
@@ -18,10 +17,6 @@ import {
 export interface GestureTick {
   seq: number
   events: GestureEvent[]
-  // Normalised (0..1, mirrored) position of the actuator hand's index
-  // fingertip, for the caller to raycast against its own scene, or null when
-  // no actuator hand is present this tick.
-  cursor: { x: number; y: number } | null
 }
 
 export interface UseHandGesturesOptions {
@@ -39,14 +34,6 @@ export interface UseHandGesturesResult {
   tick: GestureTick | null
   error: string | null
   ready: boolean
-}
-
-// The actuator is whichever hand is not curled into a fist; with one hand
-// present, that hand is the actuator by default.
-function pickActuator(hands: HandFrame[], fistThreshold: number): HandFrame | null {
-  if (hands.length === 0) return null
-  if (hands.length === 1) return hands[0]
-  return hands.find((h) => fingerCurl(h.landmarks) >= fistThreshold) ?? hands[0]
 }
 
 export function useHandGestures(options: UseHandGesturesOptions): UseHandGesturesResult {
@@ -112,11 +99,9 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
     gestureStateRef.current = result.nextState
     setGestureState(result.nextState)
 
-    const actuator = pickActuator(f.hands, thresholds.fist)
-    const cursor = actuator ? { x: 1 - actuator.landmarks[8].x, y: actuator.landmarks[8].y } : null
 
     seqRef.current += 1
-    setTick({ seq: seqRef.current, events: result.events, cursor })
+    setTick({ seq: seqRef.current, events: result.events })
   }
 
   // DEV ONLY (compiled out of production builds): lets end-to-end tests drive
@@ -159,5 +144,3 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
   return { videoRef, frame, gestureState, tick, error, ready }
 }
 
-// Re-exported for callers that only need the pure selection rule (e.g. tests).
-export { pickActuator }

@@ -4,21 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { parseCubeMove } from '../core/animation/parseCubeMove'
 import { moveFromDrag, AXIS_INDEX, type Axis, type DragInput } from '../core/gestures/MouseDragAdapter'
-import {
-  createControllerState,
-  DEFAULT_PROFILE,
-  handleIntent,
-  intentFromGestureEvent,
-  type ControllerState,
-} from '../core/gestures/InteractionController'
 import type { GestureTick } from '../core/gestures/useHandGestures'
-import { cursorToNdc } from './gestureCursor'
 import { MoveArrow } from './MoveArrow'
 import { applyColorblindPaletteToColors } from '../core/puzzles/colorblindPalette'
-import type { GestureProfile, Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
+import type { Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
 
 const PLASTIC = '#14161F'
-const HIGHLIGHT = '#00D4FF'
 // Fraction of each piece's own slot distance from centre used as its visual
 // gap offset (see the render loop below) -- proportional, not a fixed unit
 // count, so it looks right across cube3's ~1.5-unit half-extent and
@@ -84,10 +75,7 @@ interface PiecesProps {
   interactive: boolean
   setOrbitEnabled: (enabled: boolean) => void
   gestureTick?: GestureTick | null
-  gestureProfile?: GestureProfile
-  highlightedSlot?: [number, number, number] | null
   previewLayer?: { axis: Axis; layer: number } | null
-  setHighlightedSlot?: (slot: [number, number, number] | null) => void
   colorblindPalette?: boolean
   // The move currently being visually turned, or null when nothing is
   // animating. Colours stay on the PRE-move state until the rotation
@@ -112,17 +100,14 @@ function Pieces({
   interactive,
   setOrbitEnabled,
   gestureTick,
-  gestureProfile,
-  highlightedSlot,
   previewLayer,
-  setHighlightedSlot,
   colorblindPalette,
   animatingMove,
   onAnimationComplete,
   onGestureOrbit,
   onGestureZoom,
 }: PiecesProps) {
-  const { camera, scene } = useThree()
+  const { camera } = useThree()
   // Material group order is derived from the plugin's own colorScheme keys,
   // not a hardcoded cube3 face list -- assignFaceGroups() (per-puzzle
   // geometry.ts) always numbers groups 0..N-1 in this same key order, with N
@@ -212,9 +197,7 @@ function Pieces({
   })
 
   const drag = useRef<DragStart | null>(null)
-  const controllerState = useRef<ControllerState>(createControllerState())
   const lastSeq = useRef(-1)
-  const raycaster = useRef(new THREE.Raycaster())
 
   // pointerup is bound to the window, not to the meshes: a turn drag routinely
   // ends off the piece it started on (or off the canvas entirely), and an r3f
@@ -261,80 +244,22 @@ function Pieces({
     }
   }
 
-  // Task 4.5: raycast from the gesture cursor and route FSM events through the
-  // same InteractionController the mouse path informally mirrors, so both
-  // input paths commit through the same move semantics.
+  // Hand gestures only ever move the camera from inside the canvas (orbit
+  // with an open hand, zoom with two); layer turns come from Signs, which
+  // FreePlay feeds into the same move queue as the mouse and keyboard.
   useEffect(() => {
     if (!gestureTick || !interactive || gestureTick.seq === lastSeq.current) return
     lastSeq.current = gestureTick.seq
-    const profile = { ...DEFAULT_PROFILE, ...gestureProfile }
-
     for (const event of gestureTick.events) {
-      // Camera-only events never reach intentFromGestureEvent -- there is no
-      // puzzle Move for "an open hand moved" or "two hands spread apart".
-      if (event.type === 'ORBIT') {
-        onGestureOrbit?.(event.dx, event.dy)
-        continue
-      }
-      if (event.type === 'ZOOM') {
-        onGestureZoom?.(event.delta)
-        continue
-      }
-
-      let hit: { slot: [number, number, number]; hitNormal: [number, number, number] } | null = null
-      if (gestureTick.cursor && (event.type === 'GRAB' || event.type === 'ANCHOR_HOLD')) {
-        const ndc = cursorToNdc(gestureTick.cursor, camera)
-        raycaster.current.setFromCamera(ndc, camera)
-        const intersections = raycaster.current.intersectObjects(scene.children, true)
-        const first = intersections.find((i) => i.object.userData?.slot)
-        if (first) {
-          const n = first.face?.normal
-          hit = {
-            slot: first.object.userData.slot,
-            hitNormal: n ? [Math.round(n.x), Math.round(n.y), Math.round(n.z)] : [0, 1, 0],
-          }
-        }
-      }
-
-      const intent = intentFromGestureEvent(event, {
-        slot: hit?.slot ?? [0, 0, 0],
-        hitNormal: hit?.hitNormal ?? [0, 1, 0],
-        atMs: gestureTick.seq,
-      })
-      if (!intent) continue
-      // A GRAB with no raycast hit under the fingertip must not silently grab
-      // whatever the controller was last pointed at.
-      if (intent.kind === 'GRAB' && !hit) continue
-
-      const result = handleIntent(controllerState.current, intent, profile)
-      controllerState.current = result.nextState
-      for (const ev of result.events) {
-        if (ev.type === 'MOVE') onMove(ev.move)
-        if (ev.type === 'HIGHLIGHT') setHighlightedSlot?.(ev.slot)
-        if (ev.type === 'CLEAR_HIGHLIGHT') setHighlightedSlot?.(null)
-      }
+      if (event.type === 'ORBIT') onGestureOrbit?.(event.dx, event.dy)
+      else if (event.type === 'ZOOM') onGestureZoom?.(event.delta)
     }
-  }, [
-    gestureTick,
-    interactive,
-    camera,
-    scene,
-    onMove,
-    gestureProfile,
-    setHighlightedSlot,
-    onGestureOrbit,
-    onGestureZoom,
-  ])
+  }, [gestureTick, interactive, onGestureOrbit, onGestureZoom])
 
   return (
     <group>
       {mesh.pieces.map((piece) => {
         const faceColors = colors.get(piece.pieceId) ?? {}
-        const isHighlighted =
-          highlightedSlot &&
-          highlightedSlot[0] === piece.slot[0] &&
-          highlightedSlot[1] === piece.slot[1] &&
-          highlightedSlot[2] === piece.slot[2]
         // A selected layer keeps its exact colours and everything else dims,
         // rather than the layer glowing: any glow (coloured or white) shifted
         // the stickers' hue -- green read cyan, red read pink -- right when
@@ -369,8 +294,6 @@ function Pieces({
                   key={face}
                   attach={`material-${i}`}
                   color={isDimmed ? dim(faceColors[face] ?? PLASTIC) : (faceColors[face] ?? PLASTIC)}
-                  emissive={isHighlighted ? HIGHLIGHT : '#000000'}
-                  emissiveIntensity={isHighlighted ? 0.4 : 0}
                   roughness={0.35}
                   metalness={0.05}
                 />
@@ -395,9 +318,8 @@ export interface PuzzleCanvasProps {
   // Preview mode renders a still, non-interactive thumbnail.
   interactive?: boolean
   className?: string
-  // Task 4.5: live gesture events + cursor, from useHandGestures.
+  // Live hand-gesture events (camera orbit/zoom), from useHandGestures.
   gestureTick?: GestureTick | null
-  gestureProfile?: GestureProfile
   colorblindPalette?: boolean
   // The move currently animating and a callback for when it finishes turning
   // (see Pieces above). Callers that don't pass these (Academy, the
@@ -422,7 +344,6 @@ export function PuzzleCanvas({
   interactive = true,
   className,
   gestureTick,
-  gestureProfile,
   colorblindPalette,
   animatingMove,
   onAnimationComplete,
@@ -450,7 +371,6 @@ export function PuzzleCanvas({
   // Raycasting only works once the renderer exists; tests and any future
   // loading state need a real signal for that rather than a guessed delay.
   const [ready, setReady] = useState(false)
-  const [highlightedSlot, setHighlightedSlot] = useState<[number, number, number] | null>(null)
   const controls = useRef<OrbitControlsHandle | null>(null)
   const setOrbitEnabled = (enabled: boolean) => {
     if (controls.current) controls.current.enabled = enabled
@@ -527,10 +447,7 @@ export function PuzzleCanvas({
             interactive={interactive}
             setOrbitEnabled={setOrbitEnabled}
             gestureTick={gestureTick}
-            gestureProfile={gestureProfile}
-            highlightedSlot={highlightedSlot}
             previewLayer={previewLayer}
-            setHighlightedSlot={setHighlightedSlot}
             colorblindPalette={colorblindPalette}
             animatingMove={animatingMove}
             onAnimationComplete={onAnimationComplete}

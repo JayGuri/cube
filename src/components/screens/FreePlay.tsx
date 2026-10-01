@@ -35,8 +35,6 @@ export function FreePlay() {
   const defaultInputMode = useSettingsStore((s) => s.defaultInputMode)
   const colorblindPalette = useSettingsStore((s) => s.colorblindPalette)
   const gestureSensitivity = useSettingsStore((s) => s.gestureSensitivity)
-  const gestureStyle = useSettingsStore((s) => s.gestureStyle)
-  const setGestureStyle = useSettingsStore((s) => s.setGestureStyle)
   const swapHands = useSettingsStore((s) => s.swapHands)
   // The Settings sensitivity slider was previously stored but never applied
   // anywhere -- moving it did nothing. Layered on top of calibration here.
@@ -64,7 +62,7 @@ export function FreePlay() {
   const [lockHoldProgress, setLockHoldProgress] = useState(0)
   const signsRef = useRef(createSignState())
   const [heldSigns, setHeldSigns] = useState<ActiveSign[]>([])
-  const signsActive = inputMode === 'hands' && gestureStyle === 'signs'
+  const signsActive = inputMode === 'hands'
 
   // Per camera frame: the fist lock (every gesture style) and, in Signs
   // mode, the sign recognizer, whose turns go through the same animated
@@ -91,21 +89,19 @@ export function FreePlay() {
     setHeldSigns([])
   }, [signsActive])
 
-  // In Signs mode the pinch/twist vocabulary is off: only camera orbit/zoom
-  // pass through, and orbit is held while a sign is up -- a three-finger
+  // Only camera orbit/zoom pass through to the canvas, and orbit is held while a sign is up -- a three-finger
   // sign can read as an "open" hand, and holding it must not drift the
   // camera.
   const canvasTick = useMemo(() => {
     const tick = gestures.tick
     if (inputMode !== 'hands' || !tick) return null
-    if (gestureStyle !== 'signs') return tick
     const events = tick.events.filter(
       (e) =>
         e.type === 'ZOOM' ||
         (e.type === 'ORBIT' && !signsRef.current.hands.Left.current && !signsRef.current.hands.Right.current),
     )
     return { ...tick, events }
-  }, [gestures.tick, inputMode, gestureStyle])
+  }, [gestures.tick, inputMode])
 
   // Moves used to apply (and jump to their final colours) the instant they
   // arrived, which read as jerky teleporting rather than a cube turning --
@@ -355,7 +351,6 @@ export function FreePlay() {
               onMove={handleMove}
               className="h-full w-full"
               gestureTick={canvasTick}
-              gestureProfile={plugin.gestureProfile}
               colorblindPalette={colorblindPalette}
               animatingMove={animatingMove}
               onAnimationComplete={handleAnimationComplete}
@@ -416,7 +411,7 @@ export function FreePlay() {
             )}
 
             {inputMode === 'hands' && showHandsHelp && (
-              <HandsKey style={gestureStyle} onStyleChange={setGestureStyle} onClose={() => setShowHandsHelp(false)} />
+              <HandsKey onClose={() => setShowHandsHelp(false)} />
             )}
 
             {signsActive && heldSigns.length > 0 && <SignsHud signs={heldSigns} />}
@@ -426,7 +421,7 @@ export function FreePlay() {
                 guide={guide}
                 status={guideStatus}
                 onStop={stopGuide}
-                showHands={inputMode === 'hands' && gestureStyle === 'signs'}
+                showHands={inputMode === 'hands'}
               />
             )}
           </div>

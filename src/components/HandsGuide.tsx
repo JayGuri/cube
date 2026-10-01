@@ -1,6 +1,5 @@
 import { POSE_FOR, signForNotation, type ActiveSign, type SignLayer } from '../core/gestures/signGestures'
 import { describeStep, type GuideState } from '../core/solvers/solveGuide'
-import type { GestureStyle } from '../state/settingsStore'
 
 // The in-app gesture key, the live "about to turn" HUD, and the guided-solve
 // panel.
@@ -48,43 +47,20 @@ const LAYERS: Array<{ layer: SignLayer; name: string }> = [
   { layer: 'S', name: 'Standing slice' },
 ]
 
-export function HandsKey({
-  style,
-  onStyleChange,
-  onClose,
-}: {
-  style: GestureStyle
-  onStyleChange: (style: GestureStyle) => void
-  onClose: () => void
-}) {
+export function HandsKey({ onClose }: { onClose: () => void }) {
   return (
     <div
       className="absolute left-4 top-4 max-h-[calc(100%-2rem)] w-72 overflow-y-auto rounded-lg border border-white/10 bg-[#0F1117]/90 p-3 text-xs text-[#9A9DB0] shadow-lg backdrop-blur"
       data-testid="hands-help"
     >
       <div className="mb-2 flex items-center justify-between">
-        <div className="flex overflow-hidden rounded-md border border-white/10">
-          {(['signs', 'grab'] as const).map((s) => (
-            <button
-              key={s}
-              type="button"
-              data-testid={`gesture-style-${s}`}
-              onClick={() => onStyleChange(s)}
-              className={`px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${
-                style === s ? 'bg-[#00D4FF] text-[#0F1117]' : 'text-[#9A9DB0] hover:text-[#F5F5F7]'
-              }`}
-            >
-              {s === 'signs' ? 'Signs' : 'Grab & twist'}
-            </button>
-          ))}
-        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#F5F5F7]">Hand signs</span>
         <button type="button" onClick={onClose} aria-label="Hide hand-control instructions" className="hover:text-[#F5F5F7]">
           ×
         </button>
       </div>
 
-      {style === 'signs' ? (
-        <>
+      <>
           <p className="text-[#F5F5F7]">
             Use both hands. The <b>fingers</b> pick the layer, the <b>hand</b> picks the direction:
           </p>
@@ -112,15 +88,7 @@ export function HandsKey({
           <p className="mt-2 text-[11px]">
             Tip: R, U, F count fingers from the index side (1, 2, 3); L, D, B count from the pinky side.
           </p>
-        </>
-      ) : (
-        <ol className="list-decimal space-y-1 pl-4">
-          <li>Point at a piece on the cube and pinch thumb + index, holding briefly to grab it.</li>
-          <li>Keep pinching and twist your wrist the way you'd turn that layer for real.</li>
-          <li>Release near a quarter or half turn to commit; release early and it springs back.</li>
-          <li>Grab an edge piece (not a corner or centre) to turn the middle slice.</li>
-        </ol>
-      )}
+      </>
 
       <p className="mt-2 border-t border-white/10 pt-2">
         Open hand: move to orbit. Two open hands: spread or pinch together to zoom. Hold a closed fist still to

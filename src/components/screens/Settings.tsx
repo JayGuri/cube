@@ -58,18 +58,6 @@ export function Settings() {
             </select>
           </Row>
 
-          <Row label="Hand gesture style" description="Signs: a finger pose picks the layer, a swipe turns it. Grab: pinch a piece and twist.">
-            <select
-              data-testid="gesture-style"
-              value={settings.gestureStyle}
-              onChange={(e) => settings.setGestureStyle(e.target.value as 'signs' | 'grab')}
-              className="rounded-lg border border-white/10 bg-[#1A1D27] px-3 py-1.5 text-sm"
-            >
-              <option value="signs">Signs</option>
-              <option value="grab">Grab &amp; twist</option>
-            </select>
-          </Row>
-
           <Row
             label="Swap left and right hand"
             description="Turn on if your right-hand signs come out as left-hand layers (some cameras mirror their own video)."

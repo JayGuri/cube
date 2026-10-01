@@ -17,7 +17,7 @@ box; for anything that fails, note *what you did* and *what happened instead*.
 - [ ] (Hands mode) Hold a closed fist still for about 1 s: the ring fills and the lock toggles.
 - [ ] Keep holding the fist: it does **not** flicker on/off. Open your hand and repeat to unlock.
 
-## 3. Hand signs (switch to **Hands**, keep **Signs** selected)
+## 3. Hand signs (switch to **Hands**)
 Check the tracking indicator says "Tracking well" before each test.
 - [ ] Right hand, index finger up, held still: ring fills, **R** turns clockwise.
 - [ ] Left hand, same sign: **R'** (counter-clockwise).
@@ -58,11 +58,7 @@ Check the tracking indicator says "Tracking well" before each test.
 - [ ] **Stop** hides the guide; **Guide me** brings it back.
 - [ ] **Reset** and **Solve** both end the guide.
 
-## 6. Grab & twist (alternative style)
-- [ ] Switch the key's toggle to **Grab & twist**: pinch a piece, twist your wrist, release to turn.
-- [ ] Grabbing an edge piece turns its middle slice.
-
-## 7. Feel and tuning (no right answer — just tell me)
+## 6. Feel and tuning (no right answer — just tell me)
 - [ ] Is the hold before a sign turns too long or too short?
 - [ ] Are any signs hard to make or often misread? Which ones?
 - [ ] Is hand-orbit too fast or too slow?
