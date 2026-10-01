@@ -16,8 +16,8 @@ import {
 } from './signGestures'
 
 // A hand held up to the camera with an exact set of fingers extended, in raw
-// (unmirrored) camera coordinates, labelled the way MediaPipe labels it:
-// the opposite of the user's real hand, because our frames aren't mirrored.
+// camera coordinates, labelled the way MediaPipe labels it: with the user's
+// real hand (confirmed live -- see realHandedness).
 function signHand(pose: string, real: Handedness, cx = 0.5, cy = 0.5): HandFrame {
   const s = 0.06
   const at = (x: number, y: number): Landmark => ({ x: cx + x * s, y: cy + y * s, z: 0 })
@@ -27,7 +27,7 @@ function signHand(pose: string, real: Handedness, cx = 0.5, cy = 0.5): HandFrame
   ;[5, 9, 13, 17].forEach((i, k) => (lm[i] = at(xs[k], 0)))
   ;[8, 12, 16, 20].forEach((i, k) => (lm[i] = pose[k] === '1' ? at(xs[k] * 1.2, -1) : at(xs[k], 0.4)))
   lm[4] = at(-0.6, 0.5)
-  return { landmarks: lm, handedness: real === 'Right' ? 'Left' : 'Right', score: 0.95 }
+  return { landmarks: lm, handedness: real, score: 0.95 }
 }
 
 function run(frames: LandmarkFrame[], opts: SignOptions = DEFAULT_SIGN_OPTIONS) {

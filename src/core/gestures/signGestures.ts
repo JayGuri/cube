@@ -71,9 +71,11 @@ export interface SignOptions {
   holdMs: number
   // Ignore hands MediaPipe is less sure of than this.
   minScore: number
-  // MediaPipe labels hands as if the image were mirrored; our camera frames
-  // are not, so its "Left" is the user's right hand. Exposed in Settings in
-  // case a particular camera/driver already mirrors.
+  // MediaPipe's own Left/Right label is used as-is: tested live by the user,
+  // it already names their real hands correctly (an earlier version flipped
+  // it, on the theory that unmirrored frames would be labelled backwards, and
+  // every sign came out on the wrong hand). Settings > Swap left and right
+  // hand flips it for any camera/driver that does label them backwards.
   swapHands: boolean
 }
 
@@ -87,8 +89,8 @@ export const DEFAULT_SIGN_OPTIONS: SignOptions = {
 }
 
 export function realHandedness(label: Handedness, swapHands: boolean): Handedness {
-  const flipped: Handedness = label === 'Left' ? 'Right' : 'Left'
-  return swapHands ? label : flipped
+  if (!swapHands) return label
+  return label === 'Left' ? 'Right' : 'Left'
 }
 
 export function fingerPose(landmarks: Landmark[], extendedRatio: number): string {

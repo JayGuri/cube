@@ -60,7 +60,7 @@ export function Settings() {
 
           <Row
             label="Swap left and right hand"
-            description="Turn on if your right-hand signs come out as left-hand layers (some cameras mirror their own video)."
+            description="Turn on if the Hands panel shows your right hand as 'Left hand' (some cameras label them the other way round)."
           >
             <button
               type="button"

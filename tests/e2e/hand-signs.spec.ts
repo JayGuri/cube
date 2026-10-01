@@ -35,8 +35,8 @@ async function show(page: Page, hands: HandSpec[], count: number) {
           ;[5, 9, 13, 17].forEach((idx, k) => (lm[idx] = at(xs[k], 0)))
           ;[8, 12, 16, 20].forEach((idx, k) => (lm[idx] = h.pose[k] === '1' ? at(xs[k] * 1.2, -1) : at(xs[k], 0.4)))
           lm[4] = at(-0.6, 0.5)
-          // MediaPipe labels unmirrored frames with the opposite hand.
-          return { landmarks: lm, handedness: h.real === 'Right' ? 'Left' : 'Right', score: 0.95 }
+          // MediaPipe labels hands with the user's real hand.
+          return { landmarks: lm, handedness: h.real, score: 0.95 }
         })
         inject({ hands: frameHands, timestampMs: t0 + i * 40 })
         await new Promise((r) => setTimeout(r, 40))
