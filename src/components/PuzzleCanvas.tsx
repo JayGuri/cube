@@ -459,6 +459,10 @@ export interface PuzzleCanvasProps {
   // AlgorithmTrainer preview) just keep today's instant-snap behaviour.
   animatingMove?: Move | null
   onAnimationComplete?: () => void
+  // Freezes the view: no camera rotation or zoom from mouse, wheel or hand
+  // gestures. Layer turns are unaffected -- the point is to hold the cube
+  // still while solving.
+  cameraLocked?: boolean
 }
 
 export function PuzzleCanvas({
@@ -472,6 +476,7 @@ export function PuzzleCanvas({
   colorblindPalette,
   animatingMove,
   onAnimationComplete,
+  cameraLocked = false,
 }: PuzzleCanvasProps) {
   const mesh = useMemo(() => plugin.buildGeometry(), [plugin])
   // The camera is framed for cube3's ~2.6-unit half-diagonal. Pyraminx and
@@ -512,7 +517,7 @@ export function PuzzleCanvas({
   // can actually test it live, these are the two numbers to adjust.
   const nudgeOrbit = (dx: number, dy: number) => {
     const ctrl = controls.current
-    if (!ctrl) return
+    if (!ctrl || cameraLocked) return
     const ORBIT_SENSITIVITY = 6
     const MIN_POLAR = 0.15
     const MAX_POLAR = Math.PI - 0.15
@@ -528,7 +533,7 @@ export function PuzzleCanvas({
 
   const nudgeZoom = (delta: number) => {
     const ctrl = controls.current
-    if (!ctrl) return
+    if (!ctrl || cameraLocked) return
     const ZOOM_SENSITIVITY = 40
     const offset = ctrl.object.position.clone().sub(ctrl.target)
     const spherical = new THREE.Spherical().setFromVector3(offset)
@@ -543,6 +548,7 @@ export function PuzzleCanvas({
       className={className}
       data-testid="puzzle-canvas"
       data-ready={ready ? "true" : "false"}
+      data-camera-locked={cameraLocked ? "true" : "false"}
       // Right-drag orbits the camera (OrbitControls mouseButtons.RIGHT below)
       // no matter where it starts, but the browser's native context menu
       // popping up mid-drag interrupted that -- confirmed by a user report of
@@ -582,6 +588,8 @@ export function PuzzleCanvas({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ref={controls as any}
           enablePan={false}
+          enableRotate={!cameraLocked}
+          enableZoom={!cameraLocked}
           minDistance={6}
           maxDistance={16}
           // Left orbits from empty space (pieces intercept left-drags to turn

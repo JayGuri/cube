@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { CameraDebugOverlay } from '../CameraDebugOverlay'
 import { GestureConfidenceIndicator } from '../GestureConfidenceIndicator'
 import { PuzzleCanvas } from '../PuzzleCanvas'
+import { createFistLockState, fistLockProgress, stepFistLock } from '../../core/gestures/fistLock'
 import { applySensitivity } from '../../core/gestures/GestureRecognizer'
 import { moveFromKey } from '../../core/gestures/KeyboardAdapter'
 import { useHandGestures } from '../../core/gestures/useHandGestures'
@@ -34,6 +35,9 @@ export function FreePlay() {
   // why the two-handed "anchor" requirement (removed elsewhere this session)
   // went unnoticed: a first-time user has no way to discover it themselves.
   const [showHandsHelp, setShowHandsHelp] = useState(true)
+  // One lock for every input: the header button, Space, or a held fist.
+  const [cameraLocked, setCameraLocked] = useState(false)
+  const toggleCameraLock = () => setCameraLocked((v) => !v)
 
   useEffect(() => {
     void load(puzzleId as PuzzleId)
@@ -44,6 +48,18 @@ export function FreePlay() {
   const gestures = useHandGestures({ enabled: inputMode === 'hands', thresholds })
 
   const solved = status === 'ready' && isSolved()
+
+  const fistLockRef = useRef(createFistLockState())
+  const [lockHoldProgress, setLockHoldProgress] = useState(0)
+  useEffect(() => {
+    const f = gestures.frame
+    if (inputMode !== 'hands' || !f) return
+    const r = stepFistLock(fistLockRef.current, f, thresholds.fist)
+    fistLockRef.current = r.next
+    if (r.toggled) setCameraLocked((v) => !v)
+    setLockHoldProgress(fistLockProgress(r.next, f.timestampMs))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gestures.frame, inputMode])
 
   // Moves used to apply (and jump to their final colours) the instant they
   // arrived, which read as jerky teleporting rather than a cube turning --
@@ -131,6 +147,11 @@ export function FreePlay() {
     if (status !== 'ready' || !plugin) return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey) return
+      if (e.code === 'Space' && !(e.target instanceof HTMLButtonElement)) {
+        e.preventDefault()
+        setCameraLocked((v) => !v)
+        return
+      }
       const move = moveFromKey({ key: e.key, shiftKey: e.shiftKey, altKey: e.altKey }, plugin.gestureProfile.snapAngleDeg)
       if (!move) return
       e.preventDefault()
@@ -149,6 +170,20 @@ export function FreePlay() {
         </Link>
         <h1 className="text-lg font-medium">{plugin?.displayName ?? puzzleId}</h1>
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            data-testid="camera-lock"
+            aria-pressed={cameraLocked}
+            onClick={toggleCameraLock}
+            title="Lock the view (Space, or hold a fist)"
+            className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+              cameraLocked
+                ? 'border-[#F5B83D]/70 bg-[#F5B83D]/15 text-[#F5B83D]'
+                : 'border-white/10 text-[#9A9DB0] hover:text-[#F5F5F7]'
+            }`}
+          >
+            {cameraLocked ? 'View locked' : 'Lock view'}
+          </button>
           <div className="flex overflow-hidden rounded-lg border border-white/10 text-xs">
             <button
               type="button"
@@ -189,7 +224,32 @@ export function FreePlay() {
               colorblindPalette={colorblindPalette}
               animatingMove={animatingMove}
               onAnimationComplete={handleAnimationComplete}
+              cameraLocked={cameraLocked}
             />
+
+            {(cameraLocked || lockHoldProgress > 0) && (
+              <div
+                data-testid="lock-badge"
+                className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#F5B83D]/40 bg-[#0F1117]/85 px-3 py-1 text-xs text-[#F5B83D]"
+              >
+                {lockHoldProgress > 0 && (
+                  <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden>
+                    <circle cx="10" cy="10" r="8" fill="none" stroke="#F5B83D33" strokeWidth="3" />
+                    <circle
+                      cx="10"
+                      cy="10"
+                      r="8"
+                      fill="none"
+                      stroke="#F5B83D"
+                      strokeWidth="3"
+                      strokeDasharray={`${lockHoldProgress * 50.3} 50.3`}
+                      transform="rotate(-90 10 10)"
+                    />
+                  </svg>
+                )}
+                {lockHoldProgress > 0 ? (cameraLocked ? 'Keep holding to unlock…' : 'Keep holding to lock…') : 'View locked'}
+              </div>
+            )}
 
             {inputMode === 'hands' && (
               <div className="absolute right-4 top-4 w-48 overflow-hidden rounded-lg border border-white/10 shadow-lg">
