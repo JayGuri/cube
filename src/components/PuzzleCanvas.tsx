@@ -32,6 +32,8 @@ const AXIS_VECTOR: Record<Axis, THREE.Vector3> = {
   z: new THREE.Vector3(0, 0, 1),
 }
 const IDENTITY_QUATERNION = new THREE.Quaternion()
+const DIM_TOWARD = new THREE.Color('#0F1117')
+const dim = (hex: string) => `#${new THREE.Color(hex).lerp(DIM_TOWARD, 0.6).getHexString()}`
 
 // Every puzzle is scaled (see the `scale` useMemo in PuzzleCanvas below) to
 // this same on-screen half-diagonal, so one constant bounding-sphere radius
@@ -151,6 +153,7 @@ interface PiecesProps {
   gestureTick?: GestureTick | null
   gestureProfile?: GestureProfile
   highlightedSlot?: [number, number, number] | null
+  previewLayer?: { axis: Axis; layer: number } | null
   setHighlightedSlot?: (slot: [number, number, number] | null) => void
   colorblindPalette?: boolean
   // The move currently being visually turned, or null when nothing is
@@ -178,6 +181,7 @@ function Pieces({
   gestureTick,
   gestureProfile,
   highlightedSlot,
+  previewLayer,
   setHighlightedSlot,
   colorblindPalette,
   animatingMove,
@@ -398,6 +402,14 @@ function Pieces({
           highlightedSlot[0] === piece.slot[0] &&
           highlightedSlot[1] === piece.slot[1] &&
           highlightedSlot[2] === piece.slot[2]
+        // A selected layer keeps its exact colours and everything else dims,
+        // rather than the layer glowing: any glow (coloured or white) shifted
+        // the stickers' hue -- green read cyan, red read pink -- right when
+        // the user needs to read true colours to choose their next move.
+        const isDimmed =
+          !activeAnim.current &&
+          previewLayer != null &&
+          piece.slot[AXIS_INDEX[previewLayer.axis]] !== previewLayer.layer
         // A solved face is one uniform colour with no gap between cubies, so
         // it renders as a single solid block and the puzzle reads as static
         // plastic rather than a twisty puzzle. Nudging each piece slightly
@@ -423,7 +435,7 @@ function Pieces({
                 <meshStandardMaterial
                   key={face}
                   attach={`material-${i}`}
-                  color={faceColors[face] ?? PLASTIC}
+                  color={isDimmed ? dim(faceColors[face] ?? PLASTIC) : (faceColors[face] ?? PLASTIC)}
                   emissive={isHighlighted ? HIGHLIGHT : '#000000'}
                   emissiveIntensity={isHighlighted ? 0.4 : 0}
                   roughness={0.35}
@@ -463,6 +475,8 @@ export interface PuzzleCanvasProps {
   // gestures. Layer turns are unaffected -- the point is to hold the cube
   // still while solving.
   cameraLocked?: boolean
+  // Glows every piece of the layer a hand sign has selected, before it turns.
+  previewLayer?: { axis: Axis; layer: number } | null
 }
 
 export function PuzzleCanvas({
@@ -477,6 +491,7 @@ export function PuzzleCanvas({
   animatingMove,
   onAnimationComplete,
   cameraLocked = false,
+  previewLayer = null,
 }: PuzzleCanvasProps) {
   const mesh = useMemo(() => plugin.buildGeometry(), [plugin])
   // The camera is framed for cube3's ~2.6-unit half-diagonal. Pyraminx and
@@ -576,6 +591,7 @@ export function PuzzleCanvas({
             gestureTick={gestureTick}
             gestureProfile={gestureProfile}
             highlightedSlot={highlightedSlot}
+            previewLayer={previewLayer}
             setHighlightedSlot={setHighlightedSlot}
             colorblindPalette={colorblindPalette}
             animatingMove={animatingMove}

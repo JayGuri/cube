@@ -77,7 +77,7 @@ export function AlgorithmTrainer() {
     <main className="flex h-dvh flex-col overflow-hidden bg-[#0F1117] text-[#F5F5F7]">
       <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4">
         <Link to="/" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
-          ← All puzzles
+          ← Home
         </Link>
         <h1 className="text-lg font-medium">Algorithm Trainer</h1>
         <span className="text-sm text-[#9A9DB0]" data-testid="algo-progress">

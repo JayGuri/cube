@@ -16,7 +16,7 @@ export function Settings() {
     <main className="min-h-dvh bg-[#0F1117] px-6 py-12 text-[#F5F5F7]">
       <div className="mx-auto max-w-xl">
         <Link to="/" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
-          ← All puzzles
+          ← Home
         </Link>
         <h1 className="mt-2 text-3xl font-semibold">Settings</h1>
 
@@ -56,6 +56,32 @@ export function Settings() {
               <option value="mouse">Mouse</option>
               <option value="hands">Hands</option>
             </select>
+          </Row>
+
+          <Row label="Hand gesture style" description="Signs: a finger pose picks the layer, a swipe turns it. Grab: pinch a piece and twist.">
+            <select
+              data-testid="gesture-style"
+              value={settings.gestureStyle}
+              onChange={(e) => settings.setGestureStyle(e.target.value as 'signs' | 'grab')}
+              className="rounded-lg border border-white/10 bg-[#1A1D27] px-3 py-1.5 text-sm"
+            >
+              <option value="signs">Signs</option>
+              <option value="grab">Grab &amp; twist</option>
+            </select>
+          </Row>
+
+          <Row
+            label="Swap left and right hand"
+            description="Turn on if your right-hand signs come out as left-hand layers (some cameras mirror their own video)."
+          >
+            <button
+              type="button"
+              data-testid="swap-hands-toggle"
+              className={TOGGLE(settings.swapHands)}
+              onClick={() => settings.setSwapHands(!settings.swapHands)}
+            >
+              <span className={KNOB(settings.swapHands)} />
+            </button>
           </Row>
 
           <Row label="Gesture sensitivity" description="Looser thresholds if pinches/fists aren't registering.">

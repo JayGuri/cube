@@ -1,11 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CameraDebugOverlay } from '../CameraDebugOverlay'
 import { GestureConfidenceIndicator } from '../GestureConfidenceIndicator'
+import { HandsKey, SignHud } from '../HandsGuide'
 import { PuzzleCanvas } from '../PuzzleCanvas'
 import { createFistLockState, fistLockProgress, stepFistLock } from '../../core/gestures/fistLock'
 import { applySensitivity } from '../../core/gestures/GestureRecognizer'
 import { moveFromKey } from '../../core/gestures/KeyboardAdapter'
+import {
+  createSignState,
+  DEFAULT_SIGN_OPTIONS,
+  LAYER_SLICE,
+  stepSigns,
+  swipeProgress,
+  type SignLayer,
+} from '../../core/gestures/signGestures'
 import { useHandGestures } from '../../core/gestures/useHandGestures'
 import type { Move, PuzzleId } from '../../core/puzzles/PuzzlePlugin'
 import { useCalibrationStore } from '../../state/calibrationStore'
@@ -25,15 +34,16 @@ export function FreePlay() {
   const defaultInputMode = useSettingsStore((s) => s.defaultInputMode)
   const colorblindPalette = useSettingsStore((s) => s.colorblindPalette)
   const gestureSensitivity = useSettingsStore((s) => s.gestureSensitivity)
+  const gestureStyle = useSettingsStore((s) => s.gestureStyle)
+  const setGestureStyle = useSettingsStore((s) => s.setGestureStyle)
+  const swapHands = useSettingsStore((s) => s.swapHands)
   // The Settings sensitivity slider was previously stored but never applied
   // anywhere -- moving it did nothing. Layered on top of calibration here.
   const thresholds = applySensitivity(calibratedThresholds, gestureSensitivity)
 
   const [inputMode, setInputMode] = useState<InputMode>(defaultInputMode)
-  // "Show me the move or controls" -- a real user request. Hands mode had no
-  // in-app explanation of the gesture vocabulary anywhere, which is exactly
-  // why the two-handed "anchor" requirement (removed elsewhere this session)
-  // went unnoticed: a first-time user has no way to discover it themselves.
+  // Hands mode always shows its gesture key until dismissed: there is no
+  // other way for a first-time user to discover the vocabulary.
   const [showHandsHelp, setShowHandsHelp] = useState(true)
   // One lock for every input: the header button, Space, or a held fist.
   const [cameraLocked, setCameraLocked] = useState(false)
@@ -51,15 +61,50 @@ export function FreePlay() {
 
   const fistLockRef = useRef(createFistLockState())
   const [lockHoldProgress, setLockHoldProgress] = useState(0)
+  const signsRef = useRef(createSignState())
+  const [signedLayer, setSignedLayer] = useState<SignLayer | null>(null)
+  const [signSwipe, setSignSwipe] = useState(0)
+  const signsActive = inputMode === 'hands' && gestureStyle === 'signs'
+
+  // Per camera frame: the fist lock (every gesture style) and, in Signs
+  // mode, the sign recognizer, whose turns go through the same animated
+  // move queue as every other input.
   useEffect(() => {
     const f = gestures.frame
     if (inputMode !== 'hands' || !f) return
-    const r = stepFistLock(fistLockRef.current, f, thresholds.fist)
-    fistLockRef.current = r.next
-    if (r.toggled) setCameraLocked((v) => !v)
-    setLockHoldProgress(fistLockProgress(r.next, f.timestampMs))
+    const lock = stepFistLock(fistLockRef.current, f, thresholds.fist)
+    fistLockRef.current = lock.next
+    if (lock.toggled) setCameraLocked((v) => !v)
+    setLockHoldProgress(fistLockProgress(lock.next, f.timestampMs))
+
+    if (!signsActive) return
+    const opts = { ...DEFAULT_SIGN_OPTIONS, swapHands }
+    const r = stepSigns(signsRef.current, f, opts)
+    signsRef.current = r.next
+    for (const e of r.events) if (e.type === 'TURN') void enqueueMoves([e.move])
+    setSignedLayer(r.next.selected)
+    setSignSwipe(r.next.selected ? swipeProgress(r.next, f, opts) : 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gestures.frame, inputMode])
+  }, [gestures.frame, inputMode, signsActive, swapHands])
+
+  useEffect(() => {
+    signsRef.current = createSignState()
+    setSignedLayer(null)
+  }, [signsActive])
+
+  // In Signs mode the pinch/twist vocabulary is off: only camera orbit/zoom
+  // pass through, and orbit is held while a sign is up -- a three-finger
+  // sign can read as an "open" hand, and swiping it must turn the layer,
+  // not spin the camera.
+  const canvasTick = useMemo(() => {
+    const tick = gestures.tick
+    if (inputMode !== 'hands' || !tick) return null
+    if (gestureStyle !== 'signs') return tick
+    const events = tick.events.filter(
+      (e) => e.type === 'ZOOM' || (e.type === 'ORBIT' && signsRef.current.selected === null),
+    )
+    return { ...tick, events }
+  }, [gestures.tick, inputMode, gestureStyle])
 
   // Moves used to apply (and jump to their final colours) the instant they
   // arrived, which read as jerky teleporting rather than a cube turning --
@@ -166,7 +211,7 @@ export function FreePlay() {
     <main className="flex h-dvh flex-col overflow-hidden bg-[#0F1117] text-[#F5F5F7]">
       <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4">
         <Link to="/" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
-          ← All puzzles
+          ← Home
         </Link>
         <h1 className="text-lg font-medium">{plugin?.displayName ?? puzzleId}</h1>
         <div className="flex items-center gap-4">
@@ -219,12 +264,13 @@ export function FreePlay() {
               state={state}
               onMove={handleMove}
               className="h-full w-full"
-              gestureTick={inputMode === 'hands' ? gestures.tick : null}
+              gestureTick={canvasTick}
               gestureProfile={plugin.gestureProfile}
               colorblindPalette={colorblindPalette}
               animatingMove={animatingMove}
               onAnimationComplete={handleAnimationComplete}
               cameraLocked={cameraLocked}
+              previewLayer={signsActive && signedLayer ? LAYER_SLICE[signedLayer] : null}
             />
 
             {(cameraLocked || lockHoldProgress > 0) && (
@@ -267,7 +313,7 @@ export function FreePlay() {
                 <div className="flex items-center justify-between bg-black/60 px-2 py-1">
                   <GestureConfidenceIndicator frame={gestures.frame} />
                   <span className="text-[10px] uppercase tracking-wide text-[#9A9DB0]" data-testid="gesture-state">
-                    {gestures.gestureState.name}
+                    {signsActive ? (signedLayer ? `Sign ${signedLayer}` : 'Show a sign') : gestures.gestureState.name}
                   </span>
                 </div>
                 {gestures.error && (
@@ -279,43 +325,10 @@ export function FreePlay() {
             )}
 
             {inputMode === 'hands' && showHandsHelp && (
-              <div
-                className="absolute left-4 top-4 w-64 rounded-lg border border-white/10 bg-[#0F1117]/90 p-3 text-xs text-[#9A9DB0] shadow-lg backdrop-blur"
-                data-testid="hands-help"
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-[#F5F5F7]">
-                    Solving with your hands
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowHandsHelp(false)}
-                    aria-label="Hide hand-control instructions"
-                    className="text-[#9A9DB0] hover:text-[#F5F5F7]"
-                  >
-                    ×
-                  </button>
-                </div>
-                <ol className="list-decimal space-y-1 pl-4">
-                  <li>Show one hand to the camera, over the face you want to turn.</li>
-                  <li>Pinch thumb and index finger together and hold briefly to grab it.</li>
-                  <li>Keep pinching and twist your wrist the way you'd turn the layer for real -- the cube follows your actual motion, not a mirrored one.</li>
-                  <li>Release near a quarter or half turn to commit it; release early and it springs back.</li>
-                </ol>
-                <p className="mt-2 border-t border-white/10 pt-2 font-semibold text-[#F5F5F7]">
-                  Middle slices (M / E / S)
-                </p>
-                <p className="mt-1">
-                  Grab an edge square -- not a corner, not the small centre square -- and twist the same way.
-                  That piece has no outer layer of its own, so it turns the middle slice between the two
-                  outer layers instead.
-                </p>
-                <p className="mt-2 border-t border-white/10 pt-2">
-                  Open hand, no pinch: move it to orbit the camera. Two open hands: spread apart or together to
-                  zoom. Two quick pinches in a row: undo the last move.
-                </p>
-              </div>
+              <HandsKey style={gestureStyle} onStyleChange={setGestureStyle} onClose={() => setShowHandsHelp(false)} />
             )}
+
+            {signsActive && signedLayer && <SignHud layer={signedLayer} progress={signSwipe} />}
           </div>
 
           <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t border-white/10 px-6 py-4">

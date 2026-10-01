@@ -104,6 +104,35 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
     }
   }, [enabled])
 
+  // Everything downstream of detection, shared by the camera loop and the
+  // dev-only injection seam below.
+  const processFrame = (f: LandmarkFrame) => {
+    setFrame(f)
+    const result = stepGesture(gestureStateRef.current, f, thresholds)
+    gestureStateRef.current = result.nextState
+    setGestureState(result.nextState)
+
+    const actuator = pickActuator(f.hands, thresholds.fist)
+    const cursor = actuator ? { x: 1 - actuator.landmarks[8].x, y: actuator.landmarks[8].y } : null
+
+    seqRef.current += 1
+    setTick({ seq: seqRef.current, events: result.events, cursor })
+  }
+
+  // DEV ONLY (compiled out of production builds): lets end-to-end tests drive
+  // the real app with synthetic hand frames, since CI has no camera or hands.
+  // Every step after MediaPipe's detection runs exactly as it does live.
+  const processFrameRef = useRef(processFrame)
+  processFrameRef.current = processFrame
+  useEffect(() => {
+    if (!import.meta.env.DEV || !enabled) return
+    const w = window as unknown as { __handcubeInjectFrame?: (f: LandmarkFrame) => void }
+    w.__handcubeInjectFrame = (f) => processFrameRef.current(f)
+    return () => {
+      delete w.__handcubeInjectFrame
+    }
+  }, [enabled])
+
   useEffect(() => {
     if (!enabled) return
     const minIntervalMs = 1000 / targetFps
@@ -115,20 +144,7 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
       if (video && service?.ready && video.readyState >= 2 && now - lastTickAtRef.current >= minIntervalMs) {
         lastTickAtRef.current = now
         const f = service.detect(video, now)
-        if (f) {
-          setFrame(f)
-          const result = stepGesture(gestureStateRef.current, f, thresholds)
-          gestureStateRef.current = result.nextState
-          setGestureState(result.nextState)
-
-          const actuator = pickActuator(f.hands, thresholds.fist)
-          const cursor = actuator
-            ? { x: 1 - actuator.landmarks[8].x, y: actuator.landmarks[8].y }
-            : null
-
-          seqRef.current += 1
-          setTick({ seq: seqRef.current, events: result.events, cursor })
-        }
+        if (f) processFrame(f)
       }
       rafRef.current = requestAnimationFrame(loop)
     }

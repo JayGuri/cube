@@ -4,16 +4,23 @@ import { create } from 'zustand'
 // per-user gesture calibration (calibrationStore) which has its own store.
 
 export type InputModePreference = 'mouse' | 'hands'
+// 'signs': a finger pose picks the layer, a swipe turns it (default).
+// 'grab': pinch a piece and twist your wrist.
+export type GestureStyle = 'signs' | 'grab'
 
 export interface SettingsState {
   colorblindPalette: boolean
   reducedMotion: boolean
   defaultInputMode: InputModePreference
   gestureSensitivity: number // 0..1, scales pinch/fist threshold looseness
+  gestureStyle: GestureStyle
+  swapHands: boolean
   setColorblindPalette: (on: boolean) => void
   setReducedMotion: (on: boolean) => void
   setDefaultInputMode: (mode: InputModePreference) => void
   setGestureSensitivity: (value: number) => void
+  setGestureStyle: (style: GestureStyle) => void
+  setSwapHands: (on: boolean) => void
 }
 
 const STORAGE_KEY = 'handcube.settings.v1'
@@ -23,6 +30,8 @@ interface StoredSettings {
   reducedMotion: boolean
   defaultInputMode: InputModePreference
   gestureSensitivity: number
+  gestureStyle: GestureStyle
+  swapHands: boolean
 }
 
 const DEFAULTS: StoredSettings = {
@@ -30,6 +39,8 @@ const DEFAULTS: StoredSettings = {
   reducedMotion: false,
   defaultInputMode: 'mouse',
   gestureSensitivity: 0.5,
+  gestureStyle: 'signs',
+  swapHands: false,
 }
 
 function load(): StoredSettings {
@@ -70,5 +81,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const clamped = Math.min(1, Math.max(0, value))
     persist({ ...get(), gestureSensitivity: clamped })
     set({ gestureSensitivity: clamped })
+  },
+  setGestureStyle: (style) => {
+    persist({ ...get(), gestureStyle: style })
+    set({ gestureStyle: style })
+  },
+  setSwapHands: (on) => {
+    persist({ ...get(), swapHands: on })
+    set({ swapHands: on })
   },
 }))
