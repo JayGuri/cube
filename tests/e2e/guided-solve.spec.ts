@@ -12,13 +12,17 @@ const oppositeKey = (step: string) => (step.endsWith("'") ? step[0].toLowerCase(
 // The guide's position, so a test can wait for it to move on.
 async function where(page: Page) {
   if (await page.getByTestId('guide-done').isVisible()) return 'done'
+  if (await page.getByTestId('guide-solving').isVisible()) return 'solving'
   const step = await page.getByTestId('guide-step').textContent()
   const progress = await page.getByText(/^Step \d+ of \d+/).textContent()
   return `${step}|${progress}`
 }
 
 async function followToTheEnd(page: Page) {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
+    if (await page.getByTestId('guide-done').isVisible()) return
+    // Between steps the guide may briefly be checking/re-solving.
+    await expect(page.getByTestId('guide-step').or(page.getByTestId('guide-done'))).toBeVisible({ timeout: 30_000 })
     if (await page.getByTestId('guide-done').isVisible()) return
     const before = await where(page)
     const step = (await page.getByTestId('guide-step').textContent())!.trim()

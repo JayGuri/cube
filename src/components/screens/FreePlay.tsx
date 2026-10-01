@@ -217,9 +217,17 @@ export function FreePlay() {
       }
       g = r.guide
       if (r.outcome === 'finished') {
-        guideTokenRef.current++
+        // Don't announce "Solved!" while queued turns are still animating --
+        // wait for the cube to actually land, and only celebrate if it really
+        // is solved; otherwise keep guiding from wherever it ended up.
+        const token = ++guideTokenRef.current
         setGuideBoth(null)
-        setGuideStatus('done')
+        setGuideStatus('solving')
+        void drainQueue().then(() => {
+          if (token !== guideTokenRef.current) return
+          if (usePuzzleStore.getState().isSolved()) setGuideStatus('done')
+          else void startGuide()
+        })
         return
       }
     }
