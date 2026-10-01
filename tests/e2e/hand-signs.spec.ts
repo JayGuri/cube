@@ -15,7 +15,7 @@ async function openHands(page: Page) {
   await page.waitForFunction(
     () => typeof (globalThis as never as { __handcubeInjectFrame?: unknown }).__handcubeInjectFrame === 'function',
   )
-  await expect(page.getByTestId('gesture-style-signs')).toBeVisible()
+  await expect(page.getByTestId('hands-help')).toBeVisible()
 }
 
 // Feeds `count` frames of the given hands, one by one with a real gap, so

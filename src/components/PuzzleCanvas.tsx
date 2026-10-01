@@ -6,6 +6,7 @@ import { parseCubeMove } from '../core/animation/parseCubeMove'
 import { moveFromDrag, AXIS_INDEX, type Axis, type DragInput } from '../core/gestures/MouseDragAdapter'
 import type { GestureTick } from '../core/gestures/useHandGestures'
 import { MoveArrow } from './MoveArrow'
+import { orbitFromHand } from '../core/gestures/handOrbit'
 import { applyColorblindPaletteToColors } from '../core/puzzles/colorblindPalette'
 import type { Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
 
@@ -390,15 +391,7 @@ export function PuzzleCanvas({
   const nudgeOrbit = (dx: number, dy: number) => {
     const ctrl = controls.current
     if (!ctrl || cameraLocked) return
-    const ORBIT_SENSITIVITY = 6
-    const MIN_POLAR = 0.15
-    const MAX_POLAR = Math.PI - 0.15
-    const offset = ctrl.object.position.clone().sub(ctrl.target)
-    const spherical = new THREE.Spherical().setFromVector3(offset)
-    spherical.theta -= dx * ORBIT_SENSITIVITY
-    spherical.phi = Math.max(MIN_POLAR, Math.min(MAX_POLAR, spherical.phi - dy * ORBIT_SENSITIVITY))
-    offset.setFromSpherical(spherical)
-    ctrl.object.position.copy(ctrl.target).add(offset)
+    ctrl.object.position.copy(orbitFromHand(ctrl.object.position, ctrl.target, dx, dy))
     ctrl.object.lookAt(ctrl.target)
     ctrl.update()
   }
