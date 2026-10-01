@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Route, BrowserRouter as Router, Routes } from 'react-router-dom'
-import { Academy } from './components/screens/Academy'
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 import { AlgorithmTrainer } from './components/screens/AlgorithmTrainer'
 import { Calibration } from './components/screens/Calibration'
 import { FreePlay } from './components/screens/FreePlay'
 import { Home } from './components/screens/Home'
-import { LessonRunner } from './components/screens/LessonRunner'
 import { Settings } from './components/screens/Settings'
 import { initSolver } from './core/solvers/kociemba'
 
@@ -34,11 +32,10 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/play/:puzzleId" element={<FreePlay />} />
-          <Route path="/academy/:puzzleId" element={<Academy />} />
-          <Route path="/academy/:puzzleId/:trackName" element={<LessonRunner />} />
           <Route path="/calibration" element={<Calibration />} />
           <Route path="/trainer" element={<AlgorithmTrainer />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </Router>

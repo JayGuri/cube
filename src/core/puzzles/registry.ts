@@ -1,15 +1,10 @@
 import type { PuzzleId, PuzzlePlugin } from './PuzzlePlugin'
 
-// Task 6.3: the real puzzle registry, replacing Phase 1's single-entry stub
-// in puzzleStore.ts. Each loader is dynamically imported so a puzzle's whole
-// module graph (geometry, logic, lessons) only loads when the user actually
-// opens it.
-export const PUZZLE_REGISTRY: Partial<Record<PuzzleId, () => Promise<PuzzlePlugin>>> = {
+// The app is focused on the 3x3 alone for now; the other puzzles and the
+// Academy were removed rather than hidden, so nothing dead ships. The
+// registry shape is kept so a puzzle can be re-added without touching callers.
+export const PUZZLE_REGISTRY: Record<PuzzleId, () => Promise<PuzzlePlugin>> = {
   cube3: async () => (await import('./cube3')).createCube3Plugin(),
-  pyraminx: async () => (await import('./pyraminx')).createPyraminxPlugin(),
-  skewb: async () => (await import('./skewb')).createSkewbPlugin(),
-  mastermorphix: async () => (await import('./mastermorphix')).createMastermorphixPlugin(),
-  megaminx: async () => (await import('./megaminx')).createMegaminxPlugin(),
 }
 
 export function isPuzzleAvailable(id: string): id is PuzzleId {

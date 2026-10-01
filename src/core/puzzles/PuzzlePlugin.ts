@@ -22,7 +22,7 @@
 import type { Alg } from 'cubing/alg'
 import type { BufferGeometry } from 'three'
 
-export type PuzzleId = 'cube3' | 'pyraminx' | 'skewb' | 'mastermorphix' | 'megaminx'
+export type PuzzleId = 'cube3'
 
 export interface Move {
   alg: Alg
@@ -58,27 +58,10 @@ export interface GestureProfile {
   twistAxisMode: 'screen-relative' | 'body-diagonal'
 }
 
-export interface LessonStep {
-  instructionText: string
-  highlightPieces: PieceId[]
-  hintArrow?: { axis: string; direction: 1 | -1 }
-  validate: (state: PuzzleState, moveHistory: Move[]) => boolean
-}
-
-export interface LessonTrack {
-  name: string
-  steps: LessonStep[]
-}
-
-export interface LessonSet {
-  puzzleId: PuzzleId
-  tracks: LessonTrack[]
-}
-
 export interface PuzzlePlugin {
   id: PuzzleId
   displayName: string
-  // cubing definition id, e.g. "3x3x3". mastermorphix reuses "3x3x3".
+  // cubing definition id, e.g. "3x3x3".
   kpuzzleDefinitionId: string
 
   createInitialState(): PuzzleState
@@ -97,5 +80,4 @@ export interface PuzzlePlugin {
   faceletColors(state: PuzzleState): Map<PieceId, Record<string, string>>
 
   gestureProfile: GestureProfile
-  tutorial: LessonSet
 }

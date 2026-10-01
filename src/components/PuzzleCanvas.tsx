@@ -14,7 +14,6 @@ import {
 import type { GestureTick } from '../core/gestures/useHandGestures'
 import { applyColorblindPaletteToColors } from '../core/puzzles/colorblindPalette'
 import type { GestureProfile, Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
-import { HintOverlay, type HintArrowProps } from './HintOverlay'
 
 const PLASTIC = '#14161F'
 const HIGHLIGHT = '#00D4FF'
@@ -454,7 +453,6 @@ export interface PuzzleCanvasProps {
   // Task 4.5: live gesture events + cursor, from useHandGestures.
   gestureTick?: GestureTick | null
   gestureProfile?: GestureProfile
-  hintArrow?: HintArrowProps | null
   colorblindPalette?: boolean
   // The move currently animating and a callback for when it finishes turning
   // (see Pieces above). Callers that don't pass these (Academy, the
@@ -471,7 +469,6 @@ export function PuzzleCanvas({
   className,
   gestureTick,
   gestureProfile,
-  hintArrow,
   colorblindPalette,
   animatingMove,
   onAnimationComplete,
@@ -580,7 +577,6 @@ export function PuzzleCanvas({
             onGestureOrbit={nudgeOrbit}
             onGestureZoom={nudgeZoom}
           />
-          {hintArrow && <HintOverlay axis={hintArrow.axis} direction={hintArrow.direction} />}
         </group>
         <OrbitControls
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
