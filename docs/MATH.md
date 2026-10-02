@@ -1,4 +1,4 @@
-# The math behind HandCube
+# The math behind Cubit
 
 A from-scratch tour of every piece of mathematics this project uses, in the
 order you'd need it to build the app yourself. No background assumed beyond
@@ -364,22 +364,64 @@ phase 1 can leave a long phase 2. A full implementation keeps trying longer
 phase-1 solutions to shrink the **total**, landing very close to optimal
 (usually 18–22 moves) in well under a second.
 
-### What this app's solver actually does — honestly
+### What this app's solver actually does
 
-The `cube-solver` package's two-phase solver returns the **first good**
-solution it finds instead of hunting for a shorter one. On a real scramble
-that's typically 20–23 moves; on a cube only a few turns from solved it can be
-silly (three turns came back as a 21-turn solution).
+Cubit's solver is written from scratch (`src/core/solvers/twoPhase.ts`). It was
+first built on an off-the-shelf package, which stopped at the **first** good
+solution it found: typically 20 to 23 moves on a real scramble, and silly on a
+cube only a few turns from solved (three turns came back as 21).
 
-So the app also computes a second, always-valid route: **undo your moves in
-reverse**, using the group rule from section 3, `(A B)' = B' A'`, with
-cancelling moves merged (`R R'` disappears, `R R` becomes `R2`). It keeps
-whichever route takes fewer quarter turns. Neither is guaranteed to be the
-true shortest, but you never get a long solution when a short undo exists.
+The replacement follows the two-phase recipe above and then keeps going:
 
-**In the code:** `src/core/solvers/kociembaCore.ts` (wrapper and its findings),
-`kociemba.worker.ts` (runs it off the main thread), `kociemba.ts`
-(`solveFromHistory`).
+1. **Coordinates.** A cube is reduced to six small numbers: corner twist
+   (3^7 = 2187), edge flip (2^11 = 2048) and slice position (C(12,4) = 495) for
+   phase 1; corner permutation (8! = 40320), edge permutation (8!) and slice
+   permutation (4! = 24) for phase 2. Permutations are numbered with a Lehmer
+   code, the position of a permutation in the list of all n! of them.
+2. **Move tables.** For each coordinate, a table that says what number you get
+   after each of the 18 turns. The search never touches a 3D cube again; it just
+   looks numbers up.
+3. **Pruning tables.** Breadth-first search outward from the goal over pairs of
+   coordinates records the exact number of moves still needed. Used as the
+   estimate `h` in IDA*, it never over-estimates, so cutting a branch whose
+   `h` exceeds the moves left can't lose a solution. Building all four tables
+   takes about a second, done once in a web worker.
+4. **Keep improving.** Phase 1 is searched to depth 0, 1, 2, ... and every
+   phase-1 ending is offered to phase 2 with the limit set by the best total so
+   far. Anything that isn't strictly shorter is cut, so the answer only ever gets
+   better until the time budget (0.8 s) runs out.
+5. **Six points of view.** The same cube is solved six ways: relabelled by a
+   3-fold turn about the URF corner (0, 1 or 2 times, so the cube is seen from
+   three sides) and also as its **inverse**. If `S` solves the inverse of the
+   scramble, then `S'` solves the scramble, by `(A B)' = B' A'` from section 3.
+   The search wanders differently through each, so each is a fresh chance at a
+   shorter answer. Each view only accepts solutions that beat the best so far.
+
+Cost is measured in **quarter turns** (`R2` counts as 2), because that is how
+many sign, key or drag actions a person makes. Measured on 20 random scrambles:
+the first answer averaged 23.1 face turns (34.4 quarter turns); after the search,
+21.3 and 30.6.
+
+Slice turns (M E S) and rotations (x y z) in a history are rewritten as face
+turns plus a whole-cube rotation (`M = R L' x'`, and so on). A rotation never
+changes how scrambled a cube is, only which face we call Up, so the solver keeps
+a relabelling table (`frame.ts`) instead of rotating anything, and relabels its
+answer on the way out.
+
+On top of the search, the app also tries a second, always-valid route: **undo
+your moves in reverse**, with cancelling moves merged (`R R'` disappears,
+`R R` becomes `R2`). It keeps whichever route takes fewer quarter turns, so you
+never get a long answer when a short undo exists. Neither route is guaranteed to
+be the true shortest: that needs an optimal solver (Korf's), which takes minutes
+and gigabytes. Two-phase answers land within a couple of moves of optimal.
+
+**Honesty check:** the tests apply every solution to a cube in `cubing.js`, an
+independent implementation, and require it to be solved, for random scrambles,
+for the superflip, and for cubes made with slice turns and rotations.
+
+**In the code:** `twoPhase.ts` (tables and search), `frame.ts` (slices and
+rotations), `kociembaCore.ts` (entry point), `kociemba.worker.ts` (runs it off
+the main thread), `kociemba.ts` (`solveFromHistory`, which also tries the undo).
 
 ---
 
@@ -397,6 +439,26 @@ true shortest, but you never get a long solution when a short undo exists.
 
 **In the code:** `src/core/solvers/solveGuide.ts`, and the guide section of
 `src/components/screens/FreePlay.tsx`.
+
+**Solve for me** uses the same solution but plays it back: a player lets you
+pause, step either way (stepping back applies the inverse move, `X'`) and speed
+it up, so the animation time per turn is simply divided by 1, 2 or 4.
+
+---
+
+## 9b. The Academy
+
+The lessons teach the layer-by-layer method. Each stage is a yes/no question
+asked of the cube (`src/core/academy/stages.ts`): "is every white edge in its
+place?" A piece is in place when each of its stickers matches the centre of the
+face it sits on. Centres never move on face turns, so they are the reference.
+
+Every practice position is built with group theory. Take an algorithm `A` that
+fixes a stage. Applying `A'` to a solved cube makes a position `A` repairs, and
+applying `A` repeated `n` times is how the lesson says to get out of it:
+`(A')^n` is undone by `A^n`. The tests check that each position starts
+unfinished, keeps the earlier layers intact, and that the lesson's solution
+finishes it, so "Show me" can never show a move that doesn't work.
 
 ---
 

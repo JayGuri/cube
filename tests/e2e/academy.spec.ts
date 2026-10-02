@@ -1,0 +1,108 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const stepKey = (step: string) => (step.endsWith("'") ? `Shift+${step[0]}` : step[0].toLowerCase())
+
+async function followGuide(page: Page) {
+  for (let i = 0; i < 60; i++) {
+    if (!(await page.getByTestId('guide-step').isVisible())) return
+    const before = await page.getByTestId('guide-progress').textContent()
+    const step = (await page.getByTestId('guide-step').textContent())!.trim()
+    await page.keyboard.press(stepKey(step))
+    await expect
+      .poll(async () => ((await page.getByTestId('guide-step').isVisible()) ? await page.getByTestId('guide-progress').textContent() : 'finished'), {
+        timeout: 10_000,
+      })
+      .not.toBe(before)
+  }
+}
+
+test('the Academy lists the lessons and the first one finishes after four turns', async ({ page }) => {
+  await page.goto('/learn')
+  await expect(page.getByTestId('academy-progress')).toHaveText('0 of 8 done')
+  await page.getByTestId('academy-continue').click()
+  await expect(page).toHaveURL(/\/learn\/basics/)
+  await expect(page.getByTestId('lesson-panel')).toBeVisible()
+  await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
+  for (const key of ['r', 'u', 'f', 'l']) await page.keyboard.press(key)
+  await expect(page.getByTestId('lesson-done')).toBeVisible({ timeout: 10_000 })
+  await page.getByTestId('next-lesson').click()
+  await expect(page).toHaveURL(/\/learn\/cross/)
+})
+
+test('Show me walks through a lesson position and the lesson completes', async ({ page }) => {
+  test.setTimeout(90_000)
+  await page.goto('/learn/corners')
+  await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
+  await expect(page.getByTestId('lesson-algorithm')).toHaveText("R U R' U'")
+  await page.getByTestId('show-me').click()
+  await expect(page.getByTestId('guide-step')).toBeVisible()
+  await followGuide(page)
+  await expect(page.getByTestId('lesson-done')).toBeVisible({ timeout: 10_000 })
+
+  // Progress is remembered.
+  await page.goto('/learn')
+  await expect(page.getByTestId('academy-progress')).toHaveText('1 of 8 done')
+})
+
+test('a wrong move during Show me says so instead of re-solving the whole cube', async ({ page }) => {
+  await page.goto('/learn/middle')
+  await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
+  await page.getByTestId('show-me').click()
+  const step = (await page.getByTestId('guide-step').textContent())!.trim()
+  // Press the opposite of what is shown.
+  await page.keyboard.press(step.endsWith("'") ? step[0].toLowerCase() : `Shift+${step[0]}`)
+  await expect(page.getByTestId('lesson-note')).toBeVisible()
+  await expect(page.getByTestId('guide-panel')).toHaveCount(0)
+})
+
+test('Solve for me plays the solution back with controls, on both cubes', async ({ page }) => {
+  test.setTimeout(300_000)
+  for (const puzzle of ['cube3', 'mirror']) {
+    await page.goto(`/play/${puzzle}`)
+    await expect(page.getByTestId('app')).toHaveAttribute('data-solver-ready', 'true', { timeout: 45_000 })
+    await page.getByRole('button', { name: /scramble/i }).click()
+    await expect(page.getByTestId('solved-status')).toHaveText('Scrambled', { timeout: 30_000 })
+    await expect(page.getByRole('button', { name: /solve for me/i })).toBeEnabled({ timeout: 30_000 })
+    await page.getByRole('button', { name: /solve for me/i }).click()
+    await expect(page.getByTestId('solution-player')).toBeVisible()
+    await expect(page.getByTestId('solution-play')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('solved-status')).toHaveText('Solved', { timeout: 60_000 })
+    await expect(page.getByTestId('solution-progress')).toHaveText('Solved')
+    await page.getByTestId('solution-close').click()
+    await expect(page.getByTestId('solution-player')).toHaveCount(0)
+  }
+})
+
+test('the solution can be paused, stepped and reversed', async ({ page }) => {
+  test.setTimeout(90_000)
+  await page.goto('/play/cube3')
+  await expect(page.getByTestId('app')).toHaveAttribute('data-solver-ready', 'true', { timeout: 45_000 })
+  await page.getByRole('button', { name: /scramble/i }).click()
+  await expect(page.getByRole('button', { name: /solve for me/i })).toBeEnabled({ timeout: 30_000 })
+  await page.getByRole('button', { name: /solve for me/i }).click()
+  await expect(page.getByTestId('solution-play')).toBeVisible({ timeout: 15_000 })
+  await page.getByTestId('solution-play').click() // pause
+  await expect(page.getByRole('button', { name: 'Play' })).toBeVisible()
+  const at = async () => (await page.getByTestId('solution-progress').textContent())!
+  await page.waitForTimeout(600)
+  const paused = await at()
+  await page.getByRole('button', { name: 'Next move' }).click()
+  await expect.poll(at).not.toBe(paused)
+  await page.getByRole('button', { name: 'Previous move' }).click()
+  await expect.poll(at).toBe(paused)
+  await page.getByTestId('solution-moves-toggle').click()
+  await expect(page.getByTestId('solution-moves')).toBeVisible()
+})
+
+test('Home: a sign held in the demo turns a layer, and the left hand turns it the other way', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('sign-R').click()
+  await expect(page.getByTestId('sign-readout')).toContainText("R")
+  await expect(page.getByTestId('sign-turns')).toHaveText('1 turn made.', { timeout: 5_000 })
+  await page.getByTestId('sign-hand-left').click()
+  await expect(page.getByTestId('sign-readout')).toContainText("R'")
+  await expect(page.getByTestId('sign-turns')).toHaveText('2 turns made.', { timeout: 5_000 })
+  // Toggling a finger to a pattern that is not a sign makes no turn.
+  await page.getByTestId('finger-ring').click()
+  await expect(page.getByTestId('sign-readout')).toContainText(/not a sign|Hold still|[A-Z]/)
+})

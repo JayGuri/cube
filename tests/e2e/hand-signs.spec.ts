@@ -13,7 +13,7 @@ async function openHands(page: Page) {
   await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
   await page.getByTestId('input-mode-hands').click()
   await page.waitForFunction(
-    () => typeof (globalThis as never as { __handcubeInjectFrame?: unknown }).__handcubeInjectFrame === 'function',
+    () => typeof (globalThis as never as { __cubitInjectFrame?: unknown }).__cubitInjectFrame === 'function',
   )
   await expect(page.getByTestId('hands-help')).toBeVisible()
 }
@@ -23,7 +23,7 @@ async function openHands(page: Page) {
 async function show(page: Page, hands: HandSpec[], count: number) {
   await page.evaluate(
     async ({ hands, count }) => {
-      const inject = (globalThis as never as { __handcubeInjectFrame: (f: unknown) => void }).__handcubeInjectFrame
+      const inject = (globalThis as never as { __cubitInjectFrame: (f: unknown) => void }).__cubitInjectFrame
       const t0 = performance.now()
       for (let i = 0; i < count; i++) {
         const frameHands = hands.map((h) => {

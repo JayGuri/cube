@@ -1,265 +1,229 @@
-import { useEffect, useRef, useState } from 'react'
-import { parseCubeMove } from '../../core/animation/parseCubeMove'
-import {
-  applyMoveToPieces,
-  createPieces,
-  currentSlot,
-  type Mat3,
-  type TrackedPiece,
-  type Vec3,
-} from '../../core/puzzles/mirror/pieces'
 import { Link } from 'react-router-dom'
+import { LESSONS } from '../../core/academy/lessons'
+import { useAcademyStore } from '../../state/academyStore'
+import { CssCube } from '../CssCube'
+import { Logo } from '../Logo'
+import { SignPlayground } from '../SignPlayground'
 
-// Each cubie's six faces, in CSS space (y points down): transform, and the
-// outward math-space direction that face shows when the cubie is home.
-const SIDES: { t: string; n: Vec3; color: string }[] = [
-  { t: 'translateZ(var(--hs))', n: [0, 0, 1], color: '#2FB36B' },
-  { t: 'rotateY(180deg) translateZ(var(--hs))', n: [0, 0, -1], color: '#2F6FDE' },
-  { t: 'rotateY(90deg) translateZ(var(--hs))', n: [1, 0, 0], color: '#C41E3A' },
-  { t: 'rotateY(-90deg) translateZ(var(--hs))', n: [-1, 0, 0], color: '#FF8A00' },
-  { t: 'rotateX(90deg) translateZ(var(--hs))', n: [0, 1, 0], color: '#FFFFFF' },
-  { t: 'rotateX(-90deg) translateZ(var(--hs))', n: [0, -1, 0], color: '#FFD500' },
-]
-const FACES = ['R', 'L', 'U', 'D', 'F', 'B']
-const TURN_MS = 280
-const CUBIE = 66
-// Same order as createPieces(), so index i always names the same cubie.
-const HOMES = createPieces()
+const GITHUB = 'https://github.com/JayGuri/cube'
 
-// Rotation about a math axis by any angle, as rows.
-function axisRot(axis: number, a: number): Mat3 {
-  const c = Math.cos(a)
-  const s = Math.sin(a)
-  if (axis === 0) return [[1, 0, 0], [0, c, -s], [0, s, c]]
-  if (axis === 1) return [[c, 0, s], [0, 1, 0], [-s, 0, c]]
-  return [[c, -s, 0], [s, c, 0], [0, 0, 1]]
-}
-const mul = (a: Mat3, b: Mat3) =>
-  a.map((row) => [0, 1, 2].map((j) => row[0] * b[0][j] + row[1] * b[1][j] + row[2] * b[2][j])) as Mat3
+// Small sticker-grid drawings for the puzzle tiles. They sit half off the edge
+// of the tile, like a cube picked up from the table.
+const STICKERS = ['#FFFFFF', '#FFD500', '#E5384F', '#2F6FDE', '#FF8A00', '#2FB36B']
+const FACE_PATTERN = [2, 0, 5, 1, 3, 0, 5, 2, 4]
 
-// Math space is y-up, CSS is y-down: flip y on both sides, then write the
-// matrix column-major for matrix3d, and move the cubie out to its home.
-function cubieTransform(m: Mat3, home: Vec3): string {
-  const f = [1, -1, 1]
-  const c = (i: number, j: number) => f[i] * f[j] * m[i][j]
+function StickerGrid() {
   return (
-    `matrix3d(${c(0, 0)},${c(1, 0)},${c(2, 0)},0,${c(0, 1)},${c(1, 1)},${c(2, 1)},0,${c(0, 2)},${c(1, 2)},${c(2, 2)},0,0,0,0,1) ` +
-    `translate3d(${home[0] * CUBIE}px,${-home[1] * CUBIE}px,${home[2] * CUBIE}px)`
-  )
-}
-
-const invert = (m: string) => (m.endsWith("'") ? m[0] : m + "'")
-const randomScramble = () => {
-  const out: string[] = []
-  while (out.length < 14) {
-    const f = FACES[Math.floor(Math.random() * 6)]
-    if (out.length && out[out.length - 1][0] === f) continue
-    out.push(Math.random() < 0.5 ? f : f + "'")
-  }
-  return out
-}
-
-// The hero: a real 3x3 that turns its layers -- it scrambles itself, then
-// solves back move by move -- while tumbling and leaning toward the pointer.
-function HeroCube() {
-  const [tilt, setTilt] = useState({ x: 0, y: 0 })
-  const els = useRef<(HTMLDivElement | null)[]>([])
-  const pieces = useRef<TrackedPiece[]>(createPieces())
-
-  useEffect(() => {
-    const draw = (turn?: { axis: number; layer: number; angle: number }) => {
-      pieces.current.forEach((p, i) => {
-        const el = els.current[i]
-        if (!el) return
-        let m = p.rotation
-        if (turn && currentSlot(p)[turn.axis] === turn.layer) m = mul(axisRot(turn.axis, turn.angle), m)
-        el.style.transform = cubieTransform(m, p.home)
-      })
-    }
-    draw()
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-
-    let raf = 0
-    let timer = 0
-    let cancelled = false
-    const wait = (ms: number) => new Promise<void>((r) => (timer = window.setTimeout(r, ms)))
-    const animate = (move: string) =>
-      new Promise<void>((resolve) => {
-        const t = parseCubeMove(move)!
-        const axis = { x: 0, y: 1, z: 2 }[t.axis]
-        const start = performance.now()
-        const step = (now: number) => {
-          if (cancelled) return
-          const k = Math.min(1, (now - start) / TURN_MS)
-          const ease = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2
-          if (k < 1) {
-            draw({ axis, layer: t.layer, angle: t.angle * ease })
-            raf = requestAnimationFrame(step)
-          } else {
-            pieces.current = applyMoveToPieces(pieces.current, move)
-            draw()
-            resolve()
-          }
-        }
-        raf = requestAnimationFrame(step)
-      })
-
-    ;(async () => {
-      await wait(700)
-      while (!cancelled) {
-        const scramble = randomScramble()
-        for (const m of scramble) if (!cancelled) await animate(m)
-        await wait(900)
-        for (const m of [...scramble].reverse()) if (!cancelled) await animate(invert(m))
-        await wait(1800)
-      }
-    })()
-    return () => {
-      cancelled = true
-      cancelAnimationFrame(raf)
-      clearTimeout(timer)
-    }
-  }, [])
-
-  useEffect(() => {
-    const move = (e: PointerEvent) =>
-      setTilt({ x: (e.clientY / window.innerHeight - 0.5) * -24, y: (e.clientX / window.innerWidth - 0.5) * 30 })
-    window.addEventListener('pointermove', move)
-    return () => window.removeEventListener('pointermove', move)
-  }, [])
-
-  return (
-    <div aria-hidden className="hero-stage relative grid h-80 w-full place-items-center sm:h-96">
-      <div className="absolute bottom-4 h-8 w-56 rounded-[50%] bg-black/60 blur-xl" />
-      <div
-        className="transition-transform duration-500 ease-out"
-        style={{ transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`, transformStyle: 'preserve-3d' }}
-      >
-        <div className="hero-cube" style={{ ['--hs' as string]: `${CUBIE / 2}px`, ['--c' as string]: `${CUBIE}px` }}>
-          {HOMES.map((p, i) => (
-            <div key={i} className="hero-cubie" ref={(el) => void (els.current[i] = el)}>
-              {SIDES.map((s, j) => {
-                const outward = s.n.every((v, k) => v === 0 || v === p.home[k])
-                return (
-                  <div key={j} className="hero-sticker" style={{ transform: s.t }}>
-                    {outward && <span style={{ background: s.color }} />}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function MiniFace({ colors }: { colors: string[] }) {
-  return (
-    <div
-      className="grid w-16 shrink-0 grid-cols-3 gap-1 rounded-xl bg-[#0C0D10] p-1.5 transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-110"
-      aria-hidden
-    >
-      {colors.map((c, i) => (
-        <div key={i} className="aspect-square rounded-[5px]" style={{ background: c }} />
+    <div className="grid w-52 grid-cols-3 gap-2 rounded-[1.6rem] bg-[#10131A] p-3 shadow-2xl" aria-hidden>
+      {FACE_PATTERN.map((c, i) => (
+        <span key={i} className="aspect-square rounded-lg" style={{ background: STICKERS[c] }} />
       ))}
     </div>
   )
 }
 
-// Brushed-blue blocks of uneven sizes -- the Mirror Cube in one glance.
-function MirrorThumb() {
+// Brushed-blue blocks of uneven sizes: the Mirror Cube in one glance.
+function MirrorBlocks() {
   return (
     <div
-      className="grid w-16 shrink-0 gap-1 rounded-xl bg-[#0C0D10] p-1.5 transition-transform duration-300 group-hover:rotate-6 group-hover:scale-110"
+      className="grid w-56 gap-3 rounded-[1.8rem] bg-[#10131A] p-3.5 shadow-2xl"
       style={{ gridTemplateColumns: '1.4fr 1fr 0.6fr', gridTemplateRows: '1.25fr 1fr 0.75fr', aspectRatio: '1' }}
       aria-hidden
     >
       {Array.from({ length: 9 }, (_, i) => (
-        <div key={i} className="rounded-[5px] bg-linear-to-br from-[#8FB0F2] via-[#4F7FE0] to-[#24418A]" />
+        <span key={i} className="rounded-md bg-linear-to-br from-[#A9C4F7] via-[#5E8DEB] to-[#27449A]" />
       ))}
     </div>
   )
 }
 
-const STEPS = [
-  { title: 'Show a sign', body: 'Each finger pattern picks a layer.' },
-  { title: 'Pick a hand', body: 'Right turns it clockwise, left turns it back.' },
-  { title: 'Hold still', body: 'The ring fills and the layer turns.' },
+function LessonDots() {
+  const completed = useAcademyStore((s) => s.completed)
+  return (
+    <div className="flex gap-1.5" aria-hidden>
+      {LESSONS.map((l) => (
+        <span
+          key={l.id}
+          className={`h-7 w-7 rounded-lg ${completed.includes(l.id) ? 'bg-[#10131A]' : 'border-2 border-[#10131A]/40'}`}
+        />
+      ))}
+    </div>
+  )
+}
+
+const TILE =
+  'group relative isolate flex min-h-[15rem] flex-col justify-between overflow-hidden rounded-[2rem] p-7 text-[#10131A] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8)]'
+
+const FACTS = [
+  {
+    title: 'Hand tracking',
+    body: 'MediaPipe finds 21 points on each hand, on your device. Fingers up or down become a sign, and the sign picks a layer.',
+  },
+  {
+    title: 'A solver of its own',
+    body: 'A two-phase Kociemba solver written for this project. It keeps searching for shorter answers and averages about 21 turns.',
+  },
+  {
+    title: 'Shape is the state',
+    body: 'On the Mirror Cube every block’s position and rotation is tracked as a matrix, so the shape of the cube is the puzzle.',
+  },
+  {
+    title: 'Checked twice',
+    body: 'Moves, solutions and lessons are tested against a second cube engine, cubing.js, in over 200 unit tests.',
+  },
 ]
 
 export function Home() {
   return (
-    <main className="min-h-dvh overflow-hidden bg-[#16171B] text-[#ECEAE4]">
-      <div className="mx-auto max-w-5xl px-6 pb-20 pt-8">
+    <main className="min-h-dvh overflow-x-hidden bg-[#16171B] text-[#ECEAE4]">
+      <div className="relative mx-auto max-w-6xl px-6 pb-16 pt-7">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[46rem] bg-[radial-gradient(45%_45%_at_78%_32%,rgba(76,201,240,0.16),transparent),radial-gradient(35%_35%_at_58%_62%,rgba(255,213,0,0.10),transparent)]"
+        />
+
         <nav className="flex items-center justify-between text-sm">
-          <span className="font-display text-lg font-bold tracking-tight">HandCube</span>
-          <div className="flex gap-5 text-[#9C9AA3]">
+          <Logo />
+          <div className="flex items-center gap-5 text-[#9C9AA3]">
+            <Link to="/learn" className="hover:text-[#ECEAE4]">
+              Learn
+            </Link>
+            <Link to="/play/cube3" className="hover:text-[#ECEAE4]">
+              Play
+            </Link>
             <Link to="/settings" className="hover:text-[#ECEAE4]">
               Settings
             </Link>
+            <a href={GITHUB} className="hover:text-[#ECEAE4]" target="_blank" rel="noreferrer">
+              GitHub
+            </a>
           </div>
         </nav>
 
-        <section className="mt-10 grid items-center gap-6 md:grid-cols-[1.1fr_1fr]">
+        <section className="grid items-center gap-4 pt-10 md:grid-cols-[1.1fr_1fr] md:pt-14">
           <div>
-            <h1 className="sr-only">HandCube</h1>
-            <p className="font-display text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-7xl">
-              Solve a cube with your hands.
+            <h1 className="font-display text-[clamp(3.2rem,8.4vw,6.6rem)] font-extrabold leading-[0.94] tracking-[-0.03em]">
+              Solve the cube with your hands.
+            </h1>
+            <p className="mt-7 max-w-md text-lg leading-relaxed text-[#B2B0B9]">
+              Raise a few fingers at your webcam and a layer turns. Nothing to install, and your video never leaves your
+              device.
             </p>
-            <p className="mt-5 max-w-sm text-lg text-[#9C9AA3]">Your webcam reads your fingers. No touching needed.</p>
-            <Link
-              to="/play/cube3"
-              className="mt-8 inline-block rounded-full bg-[#FFD500] px-7 py-3 font-semibold text-[#16171B] transition hover:-translate-y-0.5 hover:bg-[#FFE04D] hover:shadow-[0_10px_30px_-10px_#FFD500]"
-            >
-              Start playing
-            </Link>
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link
+                to="/play/cube3"
+                data-testid="hero-play"
+                className="rounded-full bg-[#FFD500] px-8 py-3.5 font-semibold text-[#16171B] transition hover:-translate-y-0.5 hover:bg-[#FFE04D] hover:shadow-[0_12px_32px_-12px_#FFD500]"
+              >
+                Play now
+              </Link>
+              <Link
+                to="/learn"
+                className="rounded-full border border-white/20 px-8 py-3.5 font-semibold transition hover:-translate-y-0.5 hover:border-white/50"
+              >
+                Learn the method
+              </Link>
+            </div>
           </div>
-          <HeroCube />
-        </section>
-
-        <section className="mt-16">
-          <h2 className="font-display text-2xl font-bold">Pick a cube</h2>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Link
-              to="/play/cube3"
-              data-testid="play-cube3"
-              className="group flex items-center gap-5 rounded-2xl border border-white/[0.07] bg-[#202227] p-5 transition hover:-translate-y-1 hover:border-[#FFD500]/60"
-            >
-              <MiniFace
-                colors={['#C41E3A', '#FFFFFF', '#2FB36B', '#FFD500', '#2F6FDE', '#FF8A00', '#FFFFFF', '#C41E3A', '#2FB36B']}
-              />
-              <div>
-                <h2 className="font-display text-xl font-bold group-hover:text-[#FFD500]">3x3 Cube</h2>
-                <p className="mt-1 text-sm text-[#9C9AA3]">Match every face to one colour.</p>
-              </div>
-            </Link>
-            <Link
-              to="/play/mirror"
-              data-testid="play-mirror"
-              className="group flex items-center gap-5 rounded-2xl border border-white/[0.07] bg-[#202227] p-5 transition hover:-translate-y-1 hover:border-[#4F7FE0]/70"
-            >
-              <MirrorThumb />
-              <div>
-                <h2 className="font-display text-xl font-bold group-hover:text-[#8FB0F2]">Mirror Cube</h2>
-                <p className="mt-1 text-sm text-[#9C9AA3]">One colour. Solve it by shape.</p>
-              </div>
-            </Link>
+          <div className="relative grid h-[26rem] place-items-center">
+            <div aria-hidden className="absolute bottom-10 h-9 w-64 rounded-[50%] bg-black/60 blur-xl" />
+            <CssCube cubie={88} autoplay tumble followPointer />
           </div>
         </section>
 
-        <section className="mt-16">
-          <h2 className="font-display text-2xl font-bold">How hand control works</h2>
-          <ol className="mt-6 grid gap-8 sm:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <li key={s.title}>
-                <span className="font-display text-4xl font-extrabold text-[#FFD500]">{i + 1}</span>
-                <h3 className="mt-2 text-lg font-bold">{s.title}</h3>
-                <p className="mt-1 text-[#9C9AA3]">{s.body}</p>
-              </li>
+        <section className="mt-24 rounded-[2.2rem] border border-white/[0.08] bg-[#1B1D22] p-6 sm:p-10" aria-labelledby="try-title">
+          <h2 id="try-title" className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+            Raise fingers. Turn a layer.
+          </h2>
+          <p className="mt-3 max-w-xl text-[#B2B0B9]">
+            This is how the camera reads you, with a mouse standing in for your hand. Right hand turns clockwise, left hand
+            turns back.
+          </p>
+          <div className="mt-10">
+            <SignPlayground />
+          </div>
+        </section>
+
+        <section className="mt-28" aria-labelledby="pick-title">
+          <h2 id="pick-title" className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+            Pick a puzzle
+          </h2>
+          <div className="mt-8 grid gap-4 md:grid-cols-3 md:grid-rows-2">
+            <Link to="/play/cube3" data-testid="play-cube3" className={`${TILE} bg-[#2FB36B] md:col-span-2`}>
+              <div>
+                <h3 className="font-display text-4xl font-extrabold tracking-tight">3×3 Cube</h3>
+                <p className="mt-2 max-w-xs text-lg font-medium text-[#10131A]/80">The classic. Make every face one colour.</p>
+              </div>
+              <span className="mt-6 w-fit rounded-full bg-[#10131A] px-5 py-2 text-sm font-semibold text-[#ECEAE4]">Play</span>
+              <div className="absolute -bottom-10 right-8 rotate-[8deg] transition duration-500 group-hover:-translate-y-3 group-hover:rotate-[2deg]">
+                <StickerGrid />
+              </div>
+            </Link>
+
+            <Link to="/play/mirror" data-testid="play-mirror" className={`${TILE} bg-[#3C6FE0] md:row-span-2`}>
+              <div>
+                <h3 className="font-display text-4xl font-extrabold tracking-tight">Mirror Cube</h3>
+                <p className="mt-2 max-w-[15rem] text-lg font-medium text-[#10131A]/80">
+                  One colour, uneven blocks. You solve it by shape.
+                </p>
+              </div>
+              <span className="mt-6 w-fit rounded-full bg-[#10131A] px-5 py-2 text-sm font-semibold text-[#ECEAE4]">Play</span>
+              <div className="absolute -bottom-16 -right-12 -rotate-[8deg] transition duration-500 group-hover:-translate-y-3 group-hover:-rotate-[3deg]">
+                <MirrorBlocks />
+              </div>
+            </Link>
+
+            <Link to="/learn" data-testid="learn-academy" className={`${TILE} bg-[#FF8A00] md:col-span-2`}>
+              <div>
+                <h3 className="font-display text-4xl font-extrabold tracking-tight">Academy</h3>
+                <p className="mt-2 max-w-xs text-lg font-medium text-[#10131A]/80">
+                  Learn the layer-by-layer method in eight short lessons.
+                </p>
+              </div>
+              <div className="mt-6 flex flex-wrap items-center gap-4">
+                <span className="rounded-full bg-[#10131A] px-5 py-2 text-sm font-semibold text-[#ECEAE4]">Start learning</span>
+                <LessonDots />
+              </div>
+            </Link>
+          </div>
+        </section>
+
+        <section className="mt-28 grid gap-12 md:grid-cols-[1fr_1.7fr]" aria-labelledby="built-title">
+          <div>
+            <h2 id="built-title" className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+              Built from scratch.
+            </h2>
+            <p className="mt-4 max-w-sm text-[#B2B0B9]">
+              Cubit has no server. The tracking, the solver and the 3D all run in your browser.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <a href={`${GITHUB}/blob/main/docs/MATH.md`} target="_blank" rel="noreferrer" className="text-[#4CC9F0] underline-offset-4 hover:underline">
+                Read the maths
+              </a>
+              <a href={GITHUB} target="_blank" rel="noreferrer" className="text-[#FFD500] underline-offset-4 hover:underline">
+                See the source
+              </a>
+            </div>
+          </div>
+          <dl className="divide-y divide-white/10 border-y border-white/10">
+            {FACTS.map((f) => (
+              <div key={f.title} className="grid gap-1 py-5 sm:grid-cols-[11rem_1fr] sm:gap-6">
+                <dt className="font-display text-lg font-bold">{f.title}</dt>
+                <dd className="text-[#B2B0B9]">{f.body}</dd>
+              </div>
             ))}
-          </ol>
+          </dl>
         </section>
+
+        <footer className="mt-28 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-8 text-sm text-[#9C9AA3]">
+          <Logo size={22} />
+          <p>
+            Made by{' '}
+            <a href="https://github.com/JayGuri" target="_blank" rel="noreferrer" className="text-[#ECEAE4] underline-offset-4 hover:underline">
+              Jay Guri
+            </a>
+          </p>
+        </footer>
       </div>
     </main>
   )

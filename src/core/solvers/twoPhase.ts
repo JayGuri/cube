@@ -1,4 +1,4 @@
-// Kociemba's two-phase algorithm, written from scratch for HandCube.
+// Kociemba's two-phase algorithm, written from scratch for Cubit.
 //
 // WHY OUR OWN: the off-the-shelf solver we started with stops at the first
 // answer it finds, so a position three turns from solved could come back as a

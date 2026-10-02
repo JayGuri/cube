@@ -13,7 +13,7 @@ export interface SettingsState {
   setSwapHands: (on: boolean) => void
 }
 
-const STORAGE_KEY = 'handcube.settings.v1'
+const STORAGE_KEY = 'cubit.settings.v1'
 
 interface StoredSettings {
   colorblindPalette: boolean

@@ -464,7 +464,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, plugin])
 
-  const showMouseTips = !lesson && inputMode === 'mouse' && tipsOpen
+  const showMouseTips = !lesson && inputMode === 'mouse' && tipsOpen && guideStatus === 'off' && solveStatus === 'off'
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden bg-[#16171B] text-[#ECEAE4]">

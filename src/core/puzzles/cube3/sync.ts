@@ -21,7 +21,7 @@ export interface SlotDef {
 // Orbit orderings below were CONFIRMED empirically in the Task 1.1 spike, not
 // assumed: applying R to the solved pattern changes exactly CORNERS indices
 // 0,1,4,7 and EDGES indices 1,5,8,10 -- precisely the R-face slots under these
-// orderings. See docs/plans/2026-09-18-handcube.md.
+// orderings.
 export const CORNER_SLOTS: SlotDef[] = [
   { orbit: 'CORNERS', index: 0, slot: [1, 1, 1], faces: ['U', 'F', 'R'] },
   { orbit: 'CORNERS', index: 1, slot: [1, 1, -1], faces: ['U', 'R', 'B'] },

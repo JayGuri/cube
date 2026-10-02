@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // cubing API confirmed by the Task 1.1 spike against cubing@0.56.0 (2026-09-18).
-// Full findings live in docs/plans/2026-09-18-handcube.md; the short version:
+// The short version of what was learned about the cubing.js puzzle definitions:
 //
 //   - `cubing/puzzles` exports ONLY `cube3x3x3` / `cube2x2x2` as named puzzles.
 //     Everything else comes from the `puzzles` dictionary: puzzles["megaminx"].

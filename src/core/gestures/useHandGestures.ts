@@ -113,10 +113,10 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
   })
   useEffect(() => {
     if (!import.meta.env.DEV || !enabled) return
-    const w = window as unknown as { __handcubeInjectFrame?: (f: LandmarkFrame) => void }
-    w.__handcubeInjectFrame = (f) => processFrameRef.current(f)
+    const w = window as unknown as { __cubitInjectFrame?: (f: LandmarkFrame) => void }
+    w.__cubitInjectFrame = (f) => processFrameRef.current(f)
     return () => {
-      delete w.__handcubeInjectFrame
+      delete w.__cubitInjectFrame
     }
   }, [enabled])
 

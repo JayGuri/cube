@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom'
 import { useSettingsStore } from '../../state/settingsStore'
+import { Logo } from '../Logo'
 
 const TOGGLE = (on: boolean) =>
   `h-6 w-11 rounded-full transition ${on ? 'bg-[#FFD500]' : 'bg-white/15'} relative`
@@ -12,10 +12,8 @@ export function Settings() {
   return (
     <main className="min-h-dvh bg-[#16171B] px-6 py-12 text-[#ECEAE4]">
       <div className="mx-auto max-w-xl">
-        <Link to="/" className="text-sm text-[#9C9AA3] hover:text-[#ECEAE4]">
-          ← Home
-        </Link>
-        <h1 className="mt-2 text-3xl font-semibold">Settings</h1>
+        <Logo />
+        <h1 className="font-display mt-10 text-4xl font-extrabold tracking-tight">Settings</h1>
 
         <div className="mt-8 space-y-6">
           <Row
