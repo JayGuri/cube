@@ -25,28 +25,53 @@ const TOP_CORNERS: Slot[] = [[1, 1, 1], [-1, 1, 1], [1, 1, -1], [-1, 1, -1]]
 /** Stages in order; each one includes everything before it. */
 export const STAGE_ORDER: StageGoal[] = ['cross', 'firstLayer', 'secondLayer', 'topCross', 'topFace', 'topCorners', 'solved']
 
-export function stageDone(goal: StageGoal, state: PuzzleState): boolean {
+/** What a stage counts: how many of its pieces are right, out of how many. */
+interface StageDefinition {
+  slots: Slot[]
+  /** "inPlace": every sticker right. "topUp": only the top sticker is right. */
+  test: 'inPlace' | 'topUp'
+  unit: string
+}
+
+const STAGES: Record<StageGoal, StageDefinition> = {
+  cross: { slots: BOTTOM_EDGES, test: 'inPlace', unit: 'white edges in place' },
+  firstLayer: { slots: BOTTOM_CORNERS, test: 'inPlace', unit: 'white corners in place' },
+  secondLayer: { slots: MIDDLE_EDGES, test: 'inPlace', unit: 'middle edges in place' },
+  topCross: { slots: TOP_EDGES, test: 'topUp', unit: 'yellow edges on top' },
+  topFace: { slots: [...TOP_EDGES, ...TOP_CORNERS], test: 'topUp', unit: 'yellow pieces on top' },
+  topCorners: { slots: TOP_CORNERS, test: 'inPlace', unit: 'corners in place' },
+  solved: { slots: TOP_EDGES, test: 'inPlace', unit: 'top edges in place' },
+}
+
+function inspect(state: PuzzleState) {
   const colors = faceletColors(state)
   const sticker = (slot: Slot, face: Face) => colors.get(slotId(slot))?.[face]
   const centre = (face: Face) => sticker(NORMAL[face], face)
+  return {
+    inPlace: (slot: Slot) => facesOfSlot(slot).every((f) => sticker(slot, f) === centre(f)),
+    topUp: (slot: Slot) => sticker(slot, 'U') === centre('U'),
+  }
+}
 
-  // Every sticker of this piece matches the centre of the face it is on.
-  const inPlace = (slot: Slot) => facesOfSlot(slot).every((f) => sticker(slot, f) === centre(f))
-  // Only the sticker on the top face matches the top centre (the piece may be in the wrong place).
-  const topUp = (slot: Slot) => sticker(slot, 'U') === centre('U')
-  const all = (slots: Slot[], test: (s: Slot) => boolean) => slots.every(test)
+export function stageDone(goal: StageGoal, state: PuzzleState): boolean {
+  const check = inspect(state)
+  return STAGE_ORDER.slice(0, STAGE_ORDER.indexOf(goal) + 1).every((g) => {
+    const stage = STAGES[g]
+    return stage.slots.every((slot) => check[stage.test](slot))
+  })
+}
 
-  const upTo = STAGE_ORDER.indexOf(goal)
-  const checks: Array<() => boolean> = [
-    () => all(BOTTOM_EDGES, inPlace),
-    () => all(BOTTOM_CORNERS, inPlace),
-    () => all(MIDDLE_EDGES, inPlace),
-    () => all(TOP_EDGES, topUp),
-    () => all([...TOP_EDGES, ...TOP_CORNERS], topUp),
-    () => all(TOP_CORNERS, inPlace),
-    () => all(TOP_EDGES, inPlace),
-  ]
-  return checks.slice(0, upTo + 1).every((check) => check())
+export interface StageProgress {
+  done: number
+  total: number
+  unit: string
+}
+
+/** How many of this stage's own pieces are right (earlier stages are not counted). */
+export function stageProgress(goal: StageGoal, state: PuzzleState): StageProgress {
+  const check = inspect(state)
+  const stage = STAGES[goal]
+  return { done: stage.slots.filter((slot) => check[stage.test](slot)).length, total: stage.slots.length, unit: stage.unit }
 }
 
 /** The stage before this one, or null for the first. */

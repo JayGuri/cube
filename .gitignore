@@ -1,50 +1,29 @@
+# Dependencies and build output
+node_modules
+dist
+dist-ssr
+
 # Logs
 logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Env
+# Environment files
 .env
 .env.*
 !.env.example
 
-# Playwright
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
+# Editor and OS files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
 
-# Playwright artifacts
+# Test output
 test-results/
-.playwright-mcp/
+playwright-report/
+blob-report/
+playwright/.cache/
 
-# Ad hoc debug screenshots taken while manually inspecting the running app
-/*.png
-
-# MediaPipe WASM runtime: generated from node_modules by scripts/setup-mediapipe.mjs
+# Generated from node_modules by scripts/setup-mediapipe.mjs
 public/mediapipe/wasm/
-
-# Local tooling and scratch files
-.claude/
-.mcp.json
-scratchpad/

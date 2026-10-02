@@ -8,8 +8,8 @@ import { LessonPanel } from '../LessonPanel'
 import { Logo } from '../Logo'
 import { PuzzleCanvas } from '../PuzzleCanvas'
 import { SolutionPlayer, type PlaybackSpeed } from '../SolutionPlayer'
-import { LESSONS, lessonById, lessonIndex } from '../../core/academy/lessons'
-import { stageDone } from '../../core/academy/stages'
+import { lessonById, lessonIndex } from '../../core/academy/lessons'
+import { stageDone, stageProgress } from '../../core/academy/stages'
 import { movesFromAlg } from '../../core/puzzles/cube3/logic'
 import { createFistLockState, fistLockProgress, stepFistLock } from '../../core/gestures/fistLock'
 import { DEFAULT_THRESHOLDS } from '../../core/gestures/GestureRecognizer'
@@ -286,6 +286,26 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson?.id, plugin, status])
 
+  // The numbers behind the lesson's progress bar: how many pieces are right.
+  const lessonProgress =
+    lesson && state
+      ? lesson.goal
+        ? stageProgress(lesson.goal, state)
+        : { done: Math.min(moveHistory.length, 4), total: 4, unit: 'turns made' }
+      : { done: 0, total: 1, unit: '' }
+
+  // Play the whole practice solution as a demo, with the usual player controls.
+  const watchIt = () => {
+    const c = lesson?.cases[caseIndex]
+    if (!lesson || !c) return
+    closeSolution()
+    setupCase(caseIndex)
+    solveActiveRef.current = true
+    setSolutionBoth({ moves: movesFromAlg(new Alg(c.solution)), index: 0 })
+    setSolveStatus('ready')
+    setPlaying(true)
+  }
+
   const showMe = () => {
     const c = lesson?.cases[caseIndex]
     if (!lesson || !c) return
@@ -535,17 +555,16 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
             <LessonPanel
               lesson={lesson}
               index={lessonIndex(lesson.id)}
-              total={LESSONS.length}
               caseNumber={caseIndex + 1}
-              caseCount={lesson.cases.length}
               done={lessonDone}
               note={lessonNote}
               guiding={guideStatus !== 'off'}
-              busy={busy}
-              nextLessonId={LESSONS[lessonIndex(lesson.id) + 1]?.id ?? null}
+              watching={solveStatus !== 'off'}
+              progress={lessonProgress}
               signMoves={lesson.algorithm?.moves ?? lesson.cases[caseIndex]?.solution ?? ''}
-              onShowMe={showMe}
-              onNewPosition={() => setupCase((caseIndex + 1) % Math.max(1, lesson.cases.length))}
+              onWatch={watchIt}
+              onGuide={showMe}
+              onSelectCase={setupCase}
             />
           )}
           <div className="relative min-h-0 w-full flex-1">

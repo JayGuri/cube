@@ -22,6 +22,8 @@ export interface Lesson {
   steps: string[]
   /** The stage that must be reached to finish the lesson; null for a free-practice lesson. */
   goal: StageGoal | null
+  /** The goal in one plain sentence, shown above the live progress. */
+  goalText: string
   algorithm?: { name: string; moves: string; hint: string }
   cases: LessonCase[]
 }
@@ -56,6 +58,7 @@ export const LESSONS: Lesson[] = [
     title: 'Meet the cube',
     blurb: 'The six faces and how a turn is written.',
     goal: null,
+    goalText: 'Make four turns, any you like.',
     steps: [
       'The cube has six faces: Right, Left, Up, Down, Front and Back, written R, L, U, D, F and B. The centre piece of every face never moves, so it tells you that face’s colour.',
       'A letter means turn that face a quarter turn clockwise, as if you were looking straight at it. A letter with a ’ after it means turn it back, counter-clockwise.',
@@ -68,6 +71,7 @@ export const LESSONS: Lesson[] = [
     title: 'The white cross',
     blurb: 'Make a plus sign on the white face.',
     goal: 'cross',
+    goalText: 'A white plus sign on the bottom, each edge matching the side colour beside it.',
     steps: [
       'Look for the white edge pieces. Each has a second colour. Your job is to put every white edge on the bottom layer, with its second colour touching the centre of that colour.',
       'Bring an edge to the bottom by turning the face it is on, then turn the bottom face until the two colours line up with a centre. Think one edge at a time.',
@@ -80,6 +84,7 @@ export const LESSONS: Lesson[] = [
     title: 'White corners',
     blurb: 'Finish the whole white layer.',
     goal: 'firstLayer',
+    goalText: 'The whole bottom layer solved: white underneath, matching colours around its sides.',
     algorithm: { name: 'The trigger', moves: TRIGGER, hint: 'Right, Up, Right back, Up back' },
     steps: [
       'Find a white corner in the top layer. Turn the top face until it sits directly above the spot where it belongs: its other two colours should match the two faces beside that spot.',
@@ -93,6 +98,7 @@ export const LESSONS: Lesson[] = [
     title: 'The middle layer',
     blurb: 'Slide the four middle edges into place.',
     goal: 'secondLayer',
+    goalText: 'The bottom two layers solved. Only the top layer is left.',
     algorithm: {
       name: 'Edge to the right',
       moves: MIDDLE_RIGHT,
@@ -110,6 +116,7 @@ export const LESSONS: Lesson[] = [
     title: 'The yellow cross',
     blurb: 'Make a plus sign on the top face.',
     goal: 'topCross',
+    goalText: 'A yellow plus sign on the top face.',
     algorithm: { name: 'Cross maker', moves: TOP_CROSS, hint: 'Front, Right, Up, Right back, Up back, Front back' },
     steps: [
       'Look at the yellow on top. You will see a dot, an L shape or a straight line.',
@@ -123,6 +130,7 @@ export const LESSONS: Lesson[] = [
     title: 'The yellow face',
     blurb: 'Turn every top corner yellow.',
     goal: 'topFace',
+    goalText: 'The whole top face yellow.',
     algorithm: { name: 'The Sune', moves: SUNE, hint: 'Right, Up, Right back, Up, Right, Up twice, Right back' },
     steps: [
       'If one corner already shows yellow on top, hold the cube so it is at the front-left. If none do, hold it so a yellow side faces you on the left.',
@@ -136,6 +144,7 @@ export const LESSONS: Lesson[] = [
     title: 'Place the corners',
     blurb: 'Move the top corners to where they belong.',
     goal: 'topCorners',
+    goalText: 'Every top corner in its right place.',
     algorithm: { name: 'Corner swap', moves: CORNERS, hint: 'Leaves the front-left corner where it is' },
     steps: [
       'A top corner is in the right place when its three colours match the three centres around it. Turn the top face to see if any corner is.',
@@ -149,6 +158,7 @@ export const LESSONS: Lesson[] = [
     title: 'Place the edges',
     blurb: 'The last step. Solve the cube.',
     goal: 'solved',
+    goalText: 'The cube solved.',
     algorithm: { name: 'Edge cycle', moves: EDGES, hint: 'Leaves the back edge where it is' },
     steps: [
       'Turn the top face until at least one top edge matches its centre. If all four match, you are done.',

@@ -34,6 +34,8 @@ test('Show me walks through a lesson position and the lesson completes', async (
   await page.goto('/learn/corners')
   await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
   await expect(page.getByTestId('lesson-algorithm')).toHaveText("R U R' U'")
+  // The goal shows live progress: one corner is out of place in this position.
+  await expect(page.getByTestId('lesson-progress')).toHaveText('3 of 4 white corners in place')
   // The finger signs for the lesson are listed even in Mouse mode, in the two hand colours.
   await expect(page.getByTestId('lesson-signs')).toBeVisible()
   await expect(page.getByTestId('sign-sequence').locator('li')).toHaveCount(4)
@@ -42,6 +44,7 @@ test('Show me walks through a lesson position and the lesson completes', async (
   await expect(page.getByTestId('guide-sign')).toContainText(/hand/)
   await followGuide(page)
   await expect(page.getByTestId('lesson-done')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('lesson-progress')).toHaveText('4 of 4 white corners in place')
 
   // Progress is remembered.
   await page.goto('/learn')
@@ -112,4 +115,27 @@ test('Home: a sign held in the demo turns a layer, and the left hand turns it th
   // Toggling a finger to a pattern that is not a sign makes no turn.
   await page.getByTestId('finger-ring').click()
   await expect(page.getByTestId('sign-readout')).toContainText(/not a sign|Hold still|[A-Z]/)
+})
+
+test('Watch it plays the practice position as a demo without finishing the lesson for you', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.goto('/learn/cross')
+  await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
+  await expect(page.getByTestId('lesson-progress')).not.toHaveText('4 of 4 white edges in place')
+  await page.getByTestId('watch-it').click()
+  await expect(page.getByTestId('solution-player')).toBeVisible()
+  await expect(page.getByTestId('solution-progress')).toHaveText('Solved', { timeout: 30_000 })
+  await expect(page.getByTestId('lesson-progress')).toHaveText('4 of 4 white edges in place')
+  await expect(page.getByTestId('lesson-done')).toHaveCount(0)
+})
+
+test('practice positions can be picked, and lessons link forward and back', async ({ page }) => {
+  await page.goto('/learn/corners')
+  await expect(page.getByTestId('case-1')).toHaveAttribute('aria-pressed', 'true')
+  await page.getByTestId('case-3').click()
+  await expect(page.getByTestId('case-3')).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('link', { name: /Back: The white cross/ }).click()
+  await expect(page).toHaveURL(/\/learn\/cross/)
+  await page.getByRole('link', { name: 'Skip ahead' }).click()
+  await expect(page).toHaveURL(/\/learn\/corners/)
 })

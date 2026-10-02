@@ -38,8 +38,11 @@ export function Academy() {
             >
               {finished ? 'Review a lesson' : started ? 'Continue' : 'Start lesson 1'}
             </Link>
-            <span className="text-sm text-[#9C9AA3]" data-testid="academy-progress">
-              {completed.length} of {LESSONS.length} done
+            <span className="flex items-center gap-3 text-sm text-[#9C9AA3]" data-testid="academy-progress">
+              <span className="h-2 w-28 overflow-hidden rounded-full bg-white/10" aria-hidden>
+                <span className="block h-full rounded-full bg-[#2FB36B] transition-[width]" style={{ width: `${(completed.length / LESSONS.length) * 100}%` }} />
+              </span>
+              <span>{completed.length} of {LESSONS.length} done</span>
             </span>
           </div>
         </header>

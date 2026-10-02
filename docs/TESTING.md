@@ -76,13 +76,17 @@ Check the tracking indicator says "Tracking well" before each test.
 - [ ] Making your own move, Reset or Scramble closes the player.
 
 ## 8. Academy (Home › Academy)
-- [ ] The list shows eight lessons, and "Start lesson 1" opens the first.
+- [ ] The list shows eight lessons with a progress bar, and "Start lesson 1" opens the first.
 - [ ] The cube is shown with white at the bottom and yellow on top.
-- [ ] Lesson 1 completes after four turns. "Next lesson" appears.
-- [ ] In each later lesson **Show me** restarts the practice position and the guide shows the algorithm; following it completes the lesson.
-- [ ] **New position** cycles through the practice positions; **Restart position** resets the current one.
-- [ ] A wrong move during Show me says so (no re-solve) and **Undo** takes it back.
-- [ ] Finished lessons show a tick on the list and the dots on Home's Academy tile fill in. "Clear my progress" empties them.
+- [ ] Each lesson shows a goal with a live count ("3 of 4 white corners in place") that rises as you solve.
+- [ ] Lesson 1 completes after four turns. "Next: ..." appears.
+- [ ] **Watch it** plays the whole practice position with the player (pause, step, speed) and does not finish the lesson for you.
+- [ ] **Step by step** draws each move on the cube; following it completes the lesson.
+- [ ] The finger signs for the lesson's moves are listed, right hand yellow and left hand blue, and the guide strip shows the fingers for the current move even in Mouse mode.
+- [ ] The numbered buttons switch practice position; **Restart position** resets the current one.
+- [ ] A wrong move during Step by step says so (no re-solve) and **Undo** takes it back.
+- [ ] Back, Skip ahead and the dots at the top of the panel move between lessons.
+- [ ] Finished lessons show a tick on the list and fill the dots on Home's Academy tile. "Clear my progress" empties them.
 - [ ] Hand signs and keys work inside lessons too.
 
 ## 9. Look and feel
@@ -93,10 +97,9 @@ Check the tracking indicator says "Tracking well" before each test.
 - [ ] The "How to turn the cube" card appears on first visit and stays hidden after you close it.
 - [ ] The tab shows the Cubit cube icon, not the default Vite one.
 
-## 10. Feel and tuning (no right answer — just tell me)
+## 10. Feel and tuning
 - [ ] Is the hold before a sign turns too long or too short?
-- [ ] Are any signs hard to make or often misread? Which ones?
+- [ ] Are any signs hard to make or often misread?
 - [ ] Is hand-orbit too fast or too slow?
 
-Tuning values live in `src/core/gestures/signGestures.ts` (`DEFAULT_SIGN_OPTIONS`)
-and are listed with file and line in the session notes.
+Tuning values live in `src/core/gestures/signGestures.ts` (`DEFAULT_SIGN_OPTIONS`).

@@ -1,115 +1,124 @@
 <div align="center">
 
-<img src="public/favicon.svg" alt="Cubit logo" width="84" />
+<img src="public/favicon.svg" alt="Cubit logo" width="88" />
 
 # Cubit
 
-**A Rubik's Cube you control with your hands.**
+**Solve a Rubik's Cube with your hands.**
 
-Raise a few fingers at your webcam and a layer of the cube turns. It runs entirely in your browser: there is no server, and your camera feed never leaves your device.
+Raise a few fingers at your webcam and a layer of the cube turns.
+Everything runs in your browser, so your camera feed never leaves your device.
+
+[**Live demo**](https://cube-smoky-iota.vercel.app) &nbsp;·&nbsp; [How it works](#how-it-works) &nbsp;·&nbsp; [Run it locally](#run-it-locally)
+
+![React](https://img.shields.io/badge/React_19-20232a?logo=react&logoColor=61dafb)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)
+![three.js](https://img.shields.io/badge/three.js-000?logo=threedotjs&logoColor=white)
+![MediaPipe](https://img.shields.io/badge/MediaPipe-0097a7)
+![Vite](https://img.shields.io/badge/Vite-646cff?logo=vite&logoColor=white)
+
+<img src="docs/screenshots/home.png" alt="Cubit home page: a cube that scrambles and solves itself" width="860" />
 
 </div>
 
----
-
 ## Why "Cubit"
 
-A *cubit* was one of the oldest units of length: the distance from the elbow to the tip of the middle finger. A measure taken from the hand. This is a cube taken from the hand.
+A *cubit* is one of the oldest units of length: from the elbow to the tip of the middle finger. A measure taken from the hand. Cubit is a cube taken from the hand.
 
-## What it does
+## What is new here
 
-| | |
-|---|---|
-| **Hand signs** | Fingers up or down make a sign; the sign picks a layer. Your **right** hand turns it clockwise (yellow), your **left** hand turns it back (blue). Hold still until the ring fills. |
-| **3×3 Cube** | Mouse drag, keyboard, or hands. Scramble, undo, reset, lock the view with Space or a closed fist. |
-| **Mirror Cube** | A silver-blue cube with uneven blocks. There are no colours, so you solve it by *shape*. |
-| **Academy** | Eight short lessons teaching the layer-by-layer method, each with practice positions and a "Show me" button that draws the moves on the cube. |
-| **Guide me** | An arrow on the cube shows the next move of a short solution. Strictly opt-in: scrambling never starts it, so solving it yourself is the default. |
-| **Solve for me** | Finds a short solution and plays it back with pause, step forward/back, 1×/2×/4× speed and the full move list. |
+Hand-controlled cube demos usually do one thing: a pinch or a swipe turns a face, on a single 3×3, with a solver library bolted on. Cubit goes further.
+
+| | A typical hand-tracking cube | **Cubit** |
+|---|---|---|
+| **Moves by hand** | A few moves, or grab-and-twist | **Every layer turn, including slices**, from a small finger-sign alphabet. The *fingers* pick the layer and the *hand* picks the direction |
+| **Two hands** | One hand does everything | Right hand turns clockwise, left hand turns back, each with its own colour, so you never think about direction |
+| **Solving help** | Press solve, watch it play | **You solve it yourself by default.** Ask for a guide and an arrow on the cube shows the next move, in finger signs too |
+| **The solver** | Takes the first answer a library finds | **Written from scratch**, and it keeps searching from six angles for a shorter one, measured in the steps *you* would make |
+| **Puzzles** | One cube | A 3×3 and a **silver Mirror Cube** whose solved state is a *shape*, not a colour |
+| **Learning** | None | An **Academy** that teaches the layer-by-layer method with live goals, a demo of every position and the finger signs for each move |
+| **Privacy** | Often needs a server | **No backend.** Hand tracking, solving and 3D all run on your device |
+| **Trust** | Hard to tell if it's right | Every solution and lesson is checked against a **second, independent cube engine** |
+
+## What you can do
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/signs.png" alt="Try a hand sign on the home page" /><br /><b>Try a sign without a webcam.</b> Raise fingers, hold, and a real layer turns. The left hand is blue and the right hand is yellow everywhere in the app.</td>
+<td width="50%"><img src="docs/screenshots/play.png" alt="Guided solve with an arrow on the cube" /><br /><b>Guide me.</b> An arrow shows the next move on the cube, with the key and the finger sign beside it. You stay looking at the cube, not a list of moves.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/mirror.png" alt="The blue Mirror Cube" /><br /><b>The Mirror Cube.</b> One colour, uneven blocks. It is solved when the blocks make a clean cube again.</td>
+<td width="50%"><img src="docs/screenshots/academy.png" alt="An Academy lesson" /><br /><b>The Academy.</b> Eight short lessons, each with a goal that fills as you go, practice positions, a demo, and the fingers to use.</td>
+</tr>
+</table>
 
 ### The signs
 
-The four fingers (index, middle, ring, pinky) are read as four bits. Counting from the index side picks **R, U, F**; counting from the pinky side picks **L, D, B**.
+Four fingers, read as on or off. Counting from the index finger picks **R, U, F**; counting from the little finger picks **L, D, B**.
 
-| Sign | Fingers up | Layer | | Sign | Fingers up | Layer |
+| Sign | Fingers up | Turns | | Sign | Fingers up | Turns |
 |---|---|---|---|---|---|---|
-| R | index | Right | | L | pinky | Left |
-| U | index, middle | Up | | D | ring, pinky | Down |
-| F | index, middle, ring | Front | | B | middle, ring, pinky | Back |
-| M | index, pinky | Middle slice | | E | middle, ring | Equator slice |
-| S | index, middle, pinky | Standing slice | | | | |
+| R | index | Right | | L | little | Left |
+| U | index, middle | Top | | D | ring, little | Bottom |
+| F | index, middle, ring | Front | | B | middle, ring, little | Back |
+| M | index, little | Middle slice | | E | middle, ring | Equator slice |
+| S | index, middle, little | Standing slice | | | | |
 
-Open hand moving = orbit the camera. Two open hands spreading = zoom. A closed fist held still = lock the view.
+An open hand moving orbits the camera, two open hands spreading zoom it, and a closed fist held still locks the view.
 
-## What is interesting under the hood
+## How it works
 
-- **A two-phase Kociemba solver written from scratch** (`src/core/solvers/twoPhase.ts`). The library it replaced stopped at its first answer, so a cube three turns from solved came back with a 21-move solution. The new solver builds its own move and pruning tables (about a second, in a web worker), then keeps searching for strictly shorter answers from **six points of view** (the cube seen from three sides, and as its inverse). Both phases search by *cost in quarter turns*, the same count the guide shows: a random scramble averages about 25 steps after the search, against 32 for the first answer found. It is not an optimal solver and doesn't claim to be.
-- **The Mirror Cube's state is shape.** Every block's position and rotation is tracked as an integer matrix and verified against the real cube engine, so the puzzle is solved exactly when the blocks line up into a clean cube again.
-- **Hand tracking on the device.** MediaPipe's hand landmarker runs in the browser; landmarks become finger states, a majority vote removes flicker, and a small state machine turns a held sign into a move.
-- **Everything is checked against a second engine.** Moves, solutions, Academy positions and the Mirror tracker are tested against [cubing.js](https://github.com/cubing/cubing.js) as an independent oracle.
-- **The home page's cube is not WebGL.** It is 26 CSS-3D cubies, animated with the same rotation tracker, so the page stays light.
+*In plain words. The long version is in [`docs/MATH.md`](docs/MATH.md).*
 
-The maths, written for a curious beginner, lives in [`docs/MATH.md`](docs/MATH.md): permutation groups, quaternions, spherical camera orbit, hand landmarks, IDA\*, pruning tables, Kociemba's two phases, and the Mirror Cube's matrices.
+- **Reading your hands.** MediaPipe finds 21 points on each hand. Cubit checks which fingertips are above their knuckles, takes a quick vote over a few frames so a flicker never counts, and turns a steady sign into a move.
+- **Keeping track of a cube.** A cube is a list of where each piece is and how it is twisted. Every move is just a rearrangement of that list, so undo, scramble and "is it solved?" are all simple.
+- **Finding a short solution.** The solver splits the problem in two: first get the cube into a much simpler family of positions, then finish from there. It tries many ways of doing both and keeps the cheapest, counting steps the way a person makes them. Looking at the same cube from six angles gives it six chances at a shorter answer.
+- **The Mirror Cube.** Each block remembers where it is and which way it is rotated, so the shape of the whole cube *is* the puzzle state.
+- **Teaching.** Each lesson is a question asked of the cube ("are all four white edges in place?"), checked live to fill the progress bar.
 
-## Getting started
+## Run it locally
 
 ```bash
-npm install      # also copies MediaPipe's WASM runtime into public/
+npm install      # also copies MediaPipe's runtime into public/
 npm run dev      # http://localhost:5173
 ```
 
-Needs Node 20 or newer. Hand control needs a webcam and a secure origin (`localhost` or https).
+Hand control needs a webcam and `localhost` or https.
 
 ```bash
-npm test                 # unit tests (Vitest)
-npx playwright test      # end-to-end tests (starts the dev server itself)
-npm run lint
-npm run build            # type-check and production build into dist/
+npm test                 # unit tests
+npx playwright test      # end-to-end tests
+npm run build            # type-check and production build
 ```
 
-[`docs/TESTING.md`](docs/TESTING.md) is the hands-on checklist for things only a person with a webcam can judge.
+`docs/TESTING.md` has the hands-on checklist for what only a person with a webcam can judge.
 
 ## Project layout
 
 ```
 src/
-  App.tsx                    routes, lazy-loaded screens, solver warm-up
-  components/
-    screens/                 Home, FreePlay (also runs Academy lessons), Academy, Settings
-    PuzzleCanvas.tsx         react-three-fiber cube: pieces, drag-to-turn, animation
-    CssCube.tsx              the 26-cubie CSS cube used on the home page
-    SignPlayground.tsx       the try-a-sign demo
-    SolutionPlayer.tsx       play / pause / step / speed for Solve for me
-    HandsGuide.tsx           sign key, hold rings, guide strip
+  components/    screens (Home, play, Academy, Settings), the 3D cube, the CSS cube, signs, player
   core/
-    puzzles/                 cube3 and mirror plugins (state, moves, geometry, colours)
-    solvers/                 twoPhase (search), frame (slices), kociemba (wrapper), solveGuide
-    gestures/                landmarks -> signs, fist lock, hand orbit, keyboard, mouse drag
-    academy/                 lesson text, and the stage checks that decide a lesson is done
-  state/                     small zustand stores (puzzle, settings, Academy progress)
-docs/                        MATH.md, TESTING.md
-tests/e2e/                   Playwright specs
+    puzzles/     the 3×3 and Mirror Cube behind one small interface
+    solvers/     the two-phase solver and the step-by-step guide
+    gestures/    landmarks to signs, view lock, camera orbit, keyboard and mouse
+    academy/     lessons, and the checks that decide a stage is done
+  state/         small stores: puzzle, settings, Academy progress
+tests/e2e/       Playwright specs
+docs/            how it works, manual test checklist, screenshots
 ```
 
-A puzzle is a *plugin* (`PuzzlePlugin.ts`): state, move application, "is it solved", scramble, solve, geometry and colours. The play screen only talks to that interface, which is how the Mirror Cube slots in beside the 3×3.
+## Deploy
 
-## Deploying
+A static site with no backend. Import the repository into Vercel and deploy; `vercel.json` has the build settings.
 
-It is a static site. On Vercel, import the repository and deploy: `vercel.json` sets the Vite build, the output folder and the rewrite that lets `/play/cube3` load on refresh. The camera needs https, which Vercel provides. There is no backend and no environment variables.
+## Built with
 
-The hand-tracking files (about 12 MB of WASM plus a 7.5 MB model) only download when someone switches to Hands mode, and the home page ships about 260 KB of JavaScript.
+React 19 · TypeScript · Vite · Tailwind CSS v4 · three.js (react-three-fiber) · MediaPipe Tasks Vision · cubing.js · zustand · Vitest · Playwright
 
-## Honest limitations
+<div align="center">
 
-- Hand-sign timing and orbit speed are tuned by feel; they depend on lighting and camera, and live tuning values are in `src/core/gestures/signGestures.ts`.
-- The solver is short, not provably shortest.
-- The Mirror Cube's middle layers are equal and centred, so centre turns are invisible. Real "Mirror Blocks" cubes offset the middle layers too, so they play slightly differently.
-- Browser support: a current Chromium-based browser, Firefox or Safari with WebGL and `getUserMedia`.
+Made by [Jay Guri](https://github.com/JayGuri)
 
-## Stack
-
-React 19, TypeScript, Vite, Tailwind CSS v4, three.js through react-three-fiber, cubing.js, MediaPipe Tasks Vision, zustand, Vitest, Playwright.
-
----
-
-Made by [Jay Guri](https://github.com/JayGuri).
+</div>
