@@ -25,3 +25,36 @@ html {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Home hero: a CSS 3D cube that tumbles and bobs. */
+.hero-stage {
+  perspective: 900px;
+}
+.hero-cube {
+  --s: 200px;
+  --h: calc(var(--s) / 2);
+  position: relative;
+  width: var(--s);
+  height: var(--s);
+  transform-style: preserve-3d;
+  animation: hero-tumble 14s linear infinite;
+}
+.hero-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 22px;
+  background: #0c0d10;
+  backface-visibility: hidden;
+}
+@keyframes hero-tumble {
+  0% { transform: rotateX(-24deg) rotateY(0deg) translateY(0); }
+  50% { transform: rotateX(-30deg) rotateY(180deg) translateY(-10px); }
+  100% { transform: rotateX(-24deg) rotateY(360deg) translateY(0); }
+}
+@media (min-width: 640px) {
+  .hero-cube { --s: 230px; }
+}

@@ -32,6 +32,25 @@ const IDENTITY_QUATERNION = new THREE.Quaternion()
 const DIM_TOWARD = new THREE.Color('#16171B')
 const dim = (hex: string) => `#${new THREE.Color(hex).lerp(DIM_TOWARD, 0.6).getHexString()}`
 
+// Fine light/dark streaks, multiplied over the Mirror Cube's blue, read as
+// brushed metal. Drawn once on a canvas and shared by every tile.
+let brushed: THREE.CanvasTexture | null = null
+function brushedTexture(): THREE.CanvasTexture {
+  if (brushed) return brushed
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')!
+  g.fillStyle = '#d8d8d8'
+  g.fillRect(0, 0, 256, 256)
+  for (let y = 0; y < 256; y++) {
+    const v = 222 + Math.floor(Math.random() * 33)
+    g.fillStyle = `rgb(${v},${v},${v})`
+    g.fillRect(0, y, 256, 1)
+  }
+  brushed = new THREE.CanvasTexture(c)
+  brushed.colorSpace = THREE.SRGBColorSpace
+  return brushed
+}
 
 // Standard ease-in-out: starts and ends the turn gently instead of snapping
 // to/from a constant speed, which read as mechanical/jerky.
@@ -305,9 +324,15 @@ function Pieces({
             previewLayer != null &&
             pose.slot[AXIS_INDEX[previewLayer.axis]] !== previewLayer.layer
           const box = pieceBox(piece.slot)
-          // Shrink each block a touch about its own centre so dark seams show
-          // between pieces -- otherwise a solved cube reads as one solid lump.
-          const seam = box.size.map((d) => (d - 0.07) / d) as [number, number, number]
+          const [sx, sy, sz] = box.size
+          // A black plastic body with a brushed-blue tile on every side: each
+          // tile is a slab inset across its own face but standing proud along
+          // its axis, so a dark rim frames every tile like a real Mirror Cube.
+          const tiles: [number, number, number][] = [
+            [sx - 0.03, sy - 0.16, sz - 0.16],
+            [sx - 0.16, sy - 0.03, sz - 0.16],
+            [sx - 0.16, sy - 0.16, sz - 0.03],
+          ]
           return (
             <group
               key={piece.pieceId}
@@ -317,19 +342,23 @@ function Pieces({
                 else pieceGroupRefs.current.delete(piece.pieceId)
               }}
             >
-              <mesh
-                geometry={piece.geometry}
-                position={box.center}
-                scale={seam}
-                userData={{ slot: pose.slot }}
-                onPointerDown={(e) => handleDown(e, pose.slot, pose.base)}
-              >
-                <meshStandardMaterial
-                  color={isDimmed ? '#5A5D63' : '#D4D7DD'}
-                  metalness={0.75}
-                  roughness={0.22}
-                />
-              </mesh>
+              <group position={box.center} onPointerDown={(e) => handleDown(e, pose.slot, pose.base)}>
+                <mesh>
+                  <boxGeometry args={[sx - 0.1, sy - 0.1, sz - 0.1]} />
+                  <meshStandardMaterial color={PLASTIC} roughness={0.85} />
+                </mesh>
+                {tiles.map((t, i) => (
+                  <mesh key={i}>
+                    <boxGeometry args={t} />
+                    <meshStandardMaterial
+                      color={isDimmed ? '#2A3550' : '#6A98F0'}
+                      map={brushedTexture()}
+                      metalness={0.6}
+                      roughness={0.38}
+                    />
+                  </mesh>
+                ))}
+              </group>
             </group>
           )
         }
