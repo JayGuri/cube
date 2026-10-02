@@ -26,7 +26,7 @@ const AXIS_VECTOR: Record<Axis, THREE.Vector3> = {
   z: new THREE.Vector3(0, 0, 1),
 }
 const IDENTITY_QUATERNION = new THREE.Quaternion()
-const DIM_TOWARD = new THREE.Color('#0F1117')
+const DIM_TOWARD = new THREE.Color('#16171B')
 const dim = (hex: string) => `#${new THREE.Color(hex).lerp(DIM_TOWARD, 0.6).getHexString()}`
 
 
@@ -427,7 +427,7 @@ export function PuzzleCanvas({
         dpr={[1, 2]}
         onCreated={() => setReady(true)}
       >
-        <color attach="background" args={['#0F1117']} />
+        <color attach="background" args={['#16171B']} />
         <ambientLight intensity={0.85} />
         <directionalLight position={[6, 8, 5]} intensity={1.1} />
         <directionalLight position={[-6, -4, -5]} intensity={0.35} />

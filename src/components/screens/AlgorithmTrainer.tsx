@@ -74,13 +74,13 @@ export function AlgorithmTrainer() {
   }
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-[#0F1117] text-[#F5F5F7]">
+    <main className="flex h-dvh flex-col overflow-hidden bg-[#16171B] text-[#ECEAE4]">
       <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4">
-        <Link to="/" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
+        <Link to="/" className="text-sm text-[#9C9AA3] hover:text-[#ECEAE4]">
           ← Home
         </Link>
         <h1 className="text-lg font-medium">Algorithm Trainer</h1>
-        <span className="text-sm text-[#9A9DB0]" data-testid="algo-progress">
+        <span className="text-sm text-[#9C9AA3]" data-testid="algo-progress">
           {queue ? `${index + 1} / ${queue.length}` : '...'}
         </span>
       </header>
@@ -94,13 +94,13 @@ export function AlgorithmTrainer() {
           <footer className="shrink-0 space-y-3 border-t border-white/10 px-6 py-4">
             <p className="text-lg font-medium" data-testid="algo-case-name">
               {currentCard.caseName}
-              <span className="ml-2 text-sm text-[#9A9DB0]">({currentCard.category})</span>
+              <span className="ml-2 text-sm text-[#9C9AA3]">({currentCard.category})</span>
             </p>
 
             {!revealed ? (
               <button
                 type="button"
-                className="rounded-lg bg-[#00D4FF] px-4 py-2 text-sm font-medium text-[#0F1117]"
+                className="rounded-lg bg-[#FFD500] px-4 py-2 text-sm font-medium text-[#16171B]"
                 onClick={() => setRevealed(true)}
                 data-testid="reveal-solution"
               >
@@ -108,7 +108,7 @@ export function AlgorithmTrainer() {
               </button>
             ) : (
               <>
-                <p className="text-sm text-[#9A9DB0]" data-testid="algo-solution">
+                <p className="text-sm text-[#9C9AA3]" data-testid="algo-solution">
                   {currentCard.solutionAlg || '(already solved)'}
                 </p>
                 <div className="flex gap-2">

@@ -3,7 +3,7 @@ import { useCalibrationStore } from '../../state/calibrationStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
 const TOGGLE = (on: boolean) =>
-  `h-6 w-11 rounded-full transition ${on ? 'bg-[#00D4FF]' : 'bg-white/15'} relative`
+  `h-6 w-11 rounded-full transition ${on ? 'bg-[#FFD500]' : 'bg-white/15'} relative`
 const KNOB = (on: boolean) =>
   `absolute top-0.5 h-5 w-5 rounded-full bg-white transition ${on ? 'left-5' : 'left-0.5'}`
 
@@ -13,9 +13,9 @@ export function Settings() {
   const resetCalibration = useCalibrationStore((s) => s.reset)
 
   return (
-    <main className="min-h-dvh bg-[#0F1117] px-6 py-12 text-[#F5F5F7]">
+    <main className="min-h-dvh bg-[#16171B] px-6 py-12 text-[#ECEAE4]">
       <div className="mx-auto max-w-xl">
-        <Link to="/" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
+        <Link to="/" className="text-sm text-[#9C9AA3] hover:text-[#ECEAE4]">
           ← Home
         </Link>
         <h1 className="mt-2 text-3xl font-semibold">Settings</h1>
@@ -51,7 +51,7 @@ export function Settings() {
               data-testid="default-input-mode"
               value={settings.defaultInputMode}
               onChange={(e) => settings.setDefaultInputMode(e.target.value as 'mouse' | 'hands')}
-              className="rounded-lg border border-white/10 bg-[#1A1D27] px-3 py-1.5 text-sm"
+              className="rounded-lg border border-white/10 bg-[#202227] px-3 py-1.5 text-sm"
             >
               <option value="mouse">Mouse</option>
               <option value="hands">Hands</option>
@@ -92,7 +92,7 @@ export function Settings() {
             <div className="flex gap-2">
               <Link
                 to="/calibration"
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#9A9DB0] hover:text-[#F5F5F7]"
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#9C9AA3] hover:text-[#ECEAE4]"
               >
                 Re-run
               </Link>
@@ -115,10 +115,10 @@ export function Settings() {
 
 function Row({ label, description, children }: { label: string; description: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-[#1A1D27] p-4">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-[#202227] p-4">
       <div>
         <p className="font-medium">{label}</p>
-        <p className="text-sm text-[#9A9DB0]">{description}</p>
+        <p className="text-sm text-[#9C9AA3]">{description}</p>
       </div>
       {children}
     </div>

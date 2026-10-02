@@ -114,7 +114,7 @@ export function Calibration() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-[#0F1117] p-6 text-[#F5F5F7]">
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-[#16171B] p-6 text-[#ECEAE4]">
       <h1 className="text-2xl font-semibold">Gesture Calibration</h1>
 
       {error && (
@@ -135,7 +135,7 @@ export function Calibration() {
         <CameraDebugOverlay frame={frame} width={640} height={360} />
       </div>
 
-      <p className="max-w-md text-center text-[#9A9DB0]" data-testid="calibration-prompt">
+      <p className="max-w-md text-center text-[#9C9AA3]" data-testid="calibration-prompt">
         {prompt[step]}
       </p>
 
@@ -143,7 +143,7 @@ export function Calibration() {
         {step === 'intro' && (
           <button
             type="button"
-            className="rounded-lg bg-[#00D4FF] px-4 py-2 font-medium text-[#0F1117]"
+            className="rounded-lg bg-[#FFD500] px-4 py-2 font-medium text-[#16171B]"
             onClick={() => advance('openPalm')}
           >
             Start calibration
@@ -152,7 +152,7 @@ export function Calibration() {
         {step === 'done' && (
           <button
             type="button"
-            className="rounded-lg bg-[#22C55E] px-4 py-2 font-medium text-[#0F1117]"
+            className="rounded-lg bg-[#22C55E] px-4 py-2 font-medium text-[#16171B]"
             onClick={() => navigate('/')}
           >
             Continue
@@ -160,7 +160,7 @@ export function Calibration() {
         )}
         <button
           type="button"
-          className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#9A9DB0]"
+          className="rounded-lg border border-white/10 px-4 py-2 text-sm text-[#9C9AA3]"
           onClick={() => navigate('/')}
         >
           Skip

@@ -23,7 +23,9 @@ import { usePuzzleStore } from '../../state/puzzleStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
 const BUTTON =
-  'rounded-lg border border-white/10 bg-[#1A1D27] px-4 py-2 text-sm font-medium transition hover:border-[#00D4FF]/60 hover:bg-[#242837] disabled:cursor-not-allowed disabled:opacity-40'
+  'rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#ECEAE4] transition hover:border-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD500] disabled:cursor-not-allowed disabled:opacity-40'
+const PRIMARY =
+  'rounded-full bg-[#FFD500] px-5 py-2 text-sm font-semibold text-[#16171B] transition hover:bg-[#FFE04D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD500] disabled:cursor-not-allowed disabled:opacity-40'
 
 type InputMode = 'mouse' | 'hands'
 
@@ -44,6 +46,22 @@ export function FreePlay() {
   // Hands mode always shows its gesture key until dismissed: there is no
   // other way for a first-time user to discover the vocabulary.
   const [showHandsHelp, setShowHandsHelp] = useState(true)
+  // First-visit mouse tips; dismissal is remembered on this device.
+  const [tipsOpen, setTipsOpen] = useState(() => {
+    try {
+      return localStorage.getItem(TIPS_KEY) !== 'dismissed'
+    } catch {
+      return true
+    }
+  })
+  const dismissTips = () => {
+    setTipsOpen(false)
+    try {
+      localStorage.setItem(TIPS_KEY, 'dismissed')
+    } catch {
+      // Storage blocked: the tips simply come back next visit.
+    }
+  }
   // One lock for every input: the header button, Space, or a held fist.
   const [cameraLocked, setCameraLocked] = useState(false)
   const toggleCameraLock = () => setCameraLocked((v) => !v)
@@ -302,53 +320,58 @@ export function FreePlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, plugin])
 
+  const showMouseTips = inputMode === 'mouse' && tipsOpen
+
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-[#0F1117] text-[#F5F5F7]">
-      <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-6 py-4">
-        <Link to="/" className="text-sm text-[#9A9DB0] hover:text-[#F5F5F7]">
-          ← Home
+    <main className="flex h-dvh flex-col overflow-hidden bg-[#16171B] text-[#ECEAE4]">
+      <header className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] px-4 py-3 sm:px-6">
+        <Link to="/" className="font-display text-lg font-bold tracking-tight hover:text-[#FFD500]">
+          HandCube
         </Link>
-        <h1 className="text-lg font-medium">{plugin?.displayName ?? puzzleId}</h1>
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            data-testid="camera-lock"
-            aria-pressed={cameraLocked}
-            onClick={toggleCameraLock}
-            title="Lock the view (Space, or hold a fist)"
-            className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-              cameraLocked
-                ? 'border-[#F5B83D]/70 bg-[#F5B83D]/15 text-[#F5B83D]'
-                : 'border-white/10 text-[#9A9DB0] hover:text-[#F5F5F7]'
-            }`}
-          >
-            {cameraLocked ? 'View locked' : 'Lock view'}
-          </button>
-          <div className="flex overflow-hidden rounded-lg border border-white/10 text-xs">
+        <span className="text-white/20" aria-hidden>
+          /
+        </span>
+        <h1 className="text-sm text-[#9C9AA3]">{plugin?.displayName ?? puzzleId}</h1>
+
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div role="group" aria-label="Control with" className="flex rounded-full bg-[#202227] p-1 text-sm">
             <button
               type="button"
               data-testid="input-mode-mouse"
+              aria-pressed={inputMode === 'mouse'}
               onClick={() => setInputMode('mouse')}
-              className={`px-3 py-1.5 ${inputMode === 'mouse' ? 'bg-[#00D4FF] text-[#0F1117]' : 'text-[#9A9DB0]'}`}
+              className={`rounded-full px-3.5 py-1 transition ${inputMode === 'mouse' ? 'bg-[#FFD500] font-semibold text-[#16171B]' : 'text-[#9C9AA3] hover:text-[#ECEAE4]'}`}
             >
               Mouse
             </button>
             <button
               type="button"
               data-testid="input-mode-hands"
+              aria-pressed={inputMode === 'hands'}
               onClick={() => setInputMode('hands')}
-              className={`px-3 py-1.5 ${inputMode === 'hands' ? 'bg-[#00D4FF] text-[#0F1117]' : 'text-[#9A9DB0]'}`}
+              className={`rounded-full px-3.5 py-1 transition ${inputMode === 'hands' ? 'bg-[#FFD500] font-semibold text-[#16171B]' : 'text-[#9C9AA3] hover:text-[#ECEAE4]'}`}
             >
               Hands
             </button>
           </div>
-          <p className="text-sm text-[#9A9DB0]" data-testid="move-count">
-            {moveHistory.length} moves
-          </p>
+          <button
+            type="button"
+            data-testid="camera-lock"
+            aria-pressed={cameraLocked}
+            onClick={toggleCameraLock}
+            title="Freeze the view so the cube stays put (Space, or hold a fist)"
+            className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
+              cameraLocked
+                ? 'border-[#F5B83D] bg-[#F5B83D]/15 text-[#F5B83D]'
+                : 'border-white/10 text-[#9C9AA3] hover:border-white/25 hover:text-[#ECEAE4]'
+            }`}
+          >
+            {cameraLocked ? 'View locked' : 'Lock view'}
+          </button>
         </div>
       </header>
 
-      {status === 'loading' && <p className="p-6 text-[#9A9DB0]">Loading puzzle…</p>}
+      {status === 'loading' && <p className="p-6 text-[#9C9AA3]">Loading the cube…</p>}
       {status === 'error' && <p className="p-6 text-[#EF4444]">{error}</p>}
 
       {status === 'ready' && plugin && state && (
@@ -371,7 +394,7 @@ export function FreePlay() {
             {(cameraLocked || lockHoldProgress > 0) && (
               <div
                 data-testid="lock-badge"
-                className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#F5B83D]/40 bg-[#0F1117]/85 px-3 py-1 text-xs text-[#F5B83D]"
+                className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#F5B83D]/40 bg-[#16171B]/90 px-3 py-1 text-sm text-[#F5B83D]"
               >
                 {lockHoldProgress > 0 && (
                   <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden>
@@ -392,8 +415,10 @@ export function FreePlay() {
               </div>
             )}
 
+            {showMouseTips && <MouseTips onClose={dismissTips} />}
+
             {inputMode === 'hands' && (
-              <div className="absolute right-4 top-4 w-48 overflow-hidden rounded-lg border border-white/10 shadow-lg">
+              <div className="absolute right-4 top-4 w-52 overflow-hidden rounded-xl border border-white/10 bg-[#202227] shadow-lg">
                 <div className="relative aspect-video bg-black">
                   {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                   <video
@@ -403,76 +428,132 @@ export function FreePlay() {
                     muted
                     data-testid="gesture-video"
                   />
-                  <CameraDebugOverlay frame={gestures.frame} width={192} height={108} />
+                  <CameraDebugOverlay frame={gestures.frame} width={208} height={117} />
                 </div>
-                <div className="flex items-center justify-between bg-black/60 px-2 py-1">
+                <div className="flex items-center justify-between px-2.5 py-1.5">
                   <GestureConfidenceIndicator frame={gestures.frame} />
-                  <span className="text-[10px] uppercase tracking-wide text-[#9A9DB0]" data-testid="gesture-state">
-                    {signsActive ? (heldSigns.length ? heldSigns.map((h) => h.notation).join(' + ') : 'Show a sign') : gestures.gestureState.name}
+                  <span className="text-xs text-[#9C9AA3]" data-testid="gesture-state">
+                    {heldSigns.length ? heldSigns.map((h) => h.notation).join(' + ') : 'Show a sign'}
                   </span>
                 </div>
                 {gestures.error && (
-                  <p className="bg-[#EF4444]/20 px-2 py-1 text-[10px] text-[#EF4444]" data-testid="gesture-error">
+                  <p className="bg-[#EF4444]/15 px-2.5 py-1.5 text-xs text-[#EF4444]" data-testid="gesture-error">
                     {gestures.error}
                   </p>
                 )}
               </div>
             )}
 
-            {inputMode === 'hands' && showHandsHelp && (
-              <HandsKey onClose={() => setShowHandsHelp(false)} />
+            {inputMode === 'hands' && showHandsHelp && <HandsKey onClose={() => setShowHandsHelp(false)} />}
+            {inputMode === 'hands' && !showHandsHelp && (
+              <button
+                type="button"
+                onClick={() => setShowHandsHelp(true)}
+                className="absolute left-4 top-4 rounded-full border border-white/10 bg-[#202227] px-3.5 py-1.5 text-sm text-[#9C9AA3] hover:text-[#ECEAE4]"
+              >
+                Show hand signs
+              </button>
             )}
 
             {signsActive && heldSigns.length > 0 && <SignsHud signs={heldSigns} />}
 
             {guideStatus !== 'off' && (
-              <GuidePanel
-                guide={guide}
-                status={guideStatus}
-                onStop={stopGuide}
-                showHands={inputMode === 'hands'}
-              />
+              <GuidePanel guide={guide} status={guideStatus} onStop={stopGuide} showHands={inputMode === 'hands'} />
             )}
           </div>
 
-          <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t border-white/10 px-6 py-4">
-            <button type="button" className={BUTTON} onClick={() => void handleScramble()} disabled={busy}>
+          <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-white/[0.07] px-4 py-3 sm:gap-3 sm:px-6">
+            <button type="button" className={PRIMARY} onClick={() => void handleScramble()} disabled={busy}>
               Scramble
-            </button>
-            <button type="button" className={BUTTON} onClick={handleReset} disabled={busy}>
-              Reset
             </button>
             <button type="button" className={BUTTON} onClick={handleUndo} disabled={busy || moveHistory.length === 0}>
               Undo
             </button>
+            <button type="button" className={BUTTON} onClick={handleReset} disabled={busy}>
+              Reset
+            </button>
+
+            <div className="mx-auto flex items-center gap-3 text-sm">
+              <span
+                data-testid="solved-status"
+                className={`rounded-full px-3 py-1 font-semibold ${
+                  solved ? 'bg-[#2FB36B]/15 text-[#4ED48A]' : 'bg-white/5 text-[#9C9AA3]'
+                }`}
+              >
+                {solved ? 'Solved' : 'Scrambled'}
+              </span>
+              <span className="tabular-nums text-[#9C9AA3]" data-testid="move-count">
+                {moveHistory.length} moves
+              </span>
+            </div>
+
             {!solved && guideStatus === 'off' && (
               <button
                 type="button"
                 data-testid="guide-me"
-                className={`${BUTTON} border-[#F5B83D]/50 text-[#F5B83D]`}
+                title="Shows the next move to make, one step at a time"
+                className={`${BUTTON} border-[#F5B83D]/60 text-[#F5B83D] hover:border-[#F5B83D]`}
                 onClick={() => void startGuide()}
                 disabled={busy}
               >
                 Guide me
               </button>
             )}
-            <button type="button" className={BUTTON} onClick={() => void handleSolve()} disabled={busy}>
-              Solve
-            </button>
-
-            <span
-              data-testid="solved-status"
-              className={`ml-auto rounded-full px-3 py-1 text-sm font-medium ${
-                solved ? 'bg-[#22C55E]/15 text-[#22C55E]' : 'bg-white/5 text-[#9A9DB0]'
-              }`}
+            <button
+              type="button"
+              className={BUTTON}
+              title="Plays the whole solution for you"
+              onClick={() => void handleSolve()}
+              disabled={busy || solved}
             >
-              {solved ? 'Solved' : 'Scrambled'}
-            </span>
+              Solve for me
+            </button>
           </footer>
 
-          {(error || queueError) && <p className="px-6 pb-4 text-sm text-[#EF4444]">{error || queueError}</p>}
+          {(error || queueError) && <p className="px-6 pb-3 text-sm text-[#EF4444]">{error || queueError}</p>}
         </>
       )}
     </main>
   )
+}
+
+const TIPS_KEY = 'handcube.tips.v1'
+
+function MouseTips({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      data-testid="mouse-tips"
+      className="absolute left-4 top-4 w-72 rounded-xl border border-white/10 bg-[#202227]/95 p-4 text-sm text-[#9C9AA3] shadow-lg"
+    >
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <h2 className="font-display text-base font-bold text-[#ECEAE4]">How to turn the cube</h2>
+        <button type="button" onClick={onClose} aria-label="Hide tips" className="text-lg leading-none hover:text-[#ECEAE4]">
+          ×
+        </button>
+      </div>
+      <ul className="space-y-1.5">
+        <li>
+          <b className="text-[#ECEAE4]">Drag a sticker</b> to turn its layer.
+        </li>
+        <li>
+          <b className="text-[#ECEAE4]">Drag empty space</b> or right-drag to look around; scroll to zoom.
+        </li>
+        <li>
+          Or press <Kbd>R</Kbd> <Kbd>U</Kbd> <Kbd>F</Kbd> <Kbd>L</Kbd> <Kbd>D</Kbd> <Kbd>B</Kbd>, with <Kbd>Shift</Kbd> to
+          turn the other way.
+        </li>
+        <li>
+          <Kbd>Space</Kbd> locks the view.
+        </li>
+      </ul>
+      <p className="mt-3 border-t border-white/10 pt-3">
+        Press <b className="text-[#ECEAE4]">Scramble</b> and solve it yourself. Stuck?{' '}
+        <b className="text-[#F5B83D]">Guide me</b> shows the next move.
+      </p>
+    </div>
+  )
+}
+
+function Kbd({ children }: { children: React.ReactNode }) {
+  return <kbd className="rounded-md bg-white/10 px-1.5 py-0.5 font-sans text-xs text-[#ECEAE4]">{children}</kbd>
 }

@@ -15,13 +15,13 @@ export function GestureConfidenceIndicator({ frame }: GestureConfidenceIndicator
   let colorClass: string
   if (hands.length === 0) {
     label = 'No hand detected'
-    colorClass = 'text-[#9A9DB0]'
+    colorClass = 'text-[#9C9AA3]'
   } else if (bestScore < 0.5) {
     label = 'Low confidence - improve lighting'
     colorClass = 'text-[#F5A524]'
   } else if (bestScore < 0.8) {
     label = 'Tracking'
-    colorClass = 'text-[#9A9DB0]'
+    colorClass = 'text-[#9C9AA3]'
   } else {
     label = 'Tracking well'
     colorClass = 'text-[#22C55E]'
@@ -34,7 +34,7 @@ export function GestureConfidenceIndicator({ frame }: GestureConfidenceIndicator
     >
       <span
         className="h-2 w-2 rounded-full"
-        style={{ backgroundColor: hands.length === 0 ? '#9A9DB0' : bestScore < 0.5 ? '#F5A524' : '#22C55E' }}
+        style={{ backgroundColor: hands.length === 0 ? '#9C9AA3' : bestScore < 0.5 ? '#F5A524' : '#22C55E' }}
       />
       {label}
     </div>

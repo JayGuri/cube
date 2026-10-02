@@ -1,1 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap');
 @import "tailwindcss";
+
+@theme {
+  /* Atkinson Hyperlegible was designed for readability -- the instructions
+     are the product here. Bricolage Grotesque gives headings a chunky,
+     toy-like character. Both fall back to system fonts offline. */
+  --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background: #16171b;
+  color: #eceae4;
+}
+
+:focus-visible {
+  outline: 2px solid #ffd500;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

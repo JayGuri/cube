@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { LandmarkFrame } from '../core/gestures/landmarks'
 
-// Skeleton overlay per spec 11.1: #39FF88 lines, #00D4FF joints, drawn over the
+// Skeleton overlay per spec 11.1: #39FF88 lines, #FFD500 joints, drawn over the
 // video feed so a user can see why a gesture wasn't recognized (spec 8.1/4.3).
 
 const CONNECTIONS: Array<[number, number]> = [
@@ -55,7 +55,7 @@ export function CameraDebugOverlay({ frame, width, height, mirror = true }: Came
         ctx.stroke()
       }
 
-      ctx.fillStyle = '#00D4FF'
+      ctx.fillStyle = '#FFD500'
       for (const p of hand.landmarks) {
         ctx.beginPath()
         ctx.arc(px(p.x), py(p.y), 3, 0, Math.PI * 2)

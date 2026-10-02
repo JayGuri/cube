@@ -14,8 +14,8 @@ export default defineConfig({
         name: 'HandCube',
         short_name: 'HandCube',
         description: 'Solve twisty puzzles with your hands, entirely in the browser.',
-        theme_color: '#0F1117',
-        background_color: '#0F1117',
+        theme_color: '#16171B',
+        background_color: '#16171B',
         display: 'standalone',
         // Reuses the existing favicon.svg rather than generating a whole PNG
         // icon set for one asset -- modern browsers accept an SVG manifest
