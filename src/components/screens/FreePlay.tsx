@@ -1,9 +1,16 @@
+import { Alg } from 'cubing/alg'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CameraDebugOverlay } from '../CameraDebugOverlay'
 import { GestureConfidenceIndicator } from '../GestureConfidenceIndicator'
 import { GuidePanel, HandsKey, SignsHud } from '../HandsGuide'
+import { LessonPanel } from '../LessonPanel'
+import { Logo } from '../Logo'
 import { PuzzleCanvas } from '../PuzzleCanvas'
+import { SolutionPlayer, type PlaybackSpeed } from '../SolutionPlayer'
+import { LESSONS, lessonById, lessonIndex } from '../../core/academy/lessons'
+import { stageDone } from '../../core/academy/stages'
+import { movesFromAlg } from '../../core/puzzles/cube3/logic'
 import { createFistLockState, fistLockProgress, stepFistLock } from '../../core/gestures/fistLock'
 import { DEFAULT_THRESHOLDS } from '../../core/gestures/GestureRecognizer'
 import { moveFromKey } from '../../core/gestures/KeyboardAdapter'
@@ -19,6 +26,7 @@ import { createGuide, expandSteps, followMove, type GuideState } from '../../cor
 import { useHandGestures } from '../../core/gestures/useHandGestures'
 import type { Move, PuzzleId } from '../../core/puzzles/PuzzlePlugin'
 import { usePuzzleStore } from '../../state/puzzleStore'
+import { useAcademyStore } from '../../state/academyStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
 const BUTTON =
@@ -28,8 +36,20 @@ const PRIMARY =
 
 type InputMode = 'mouse' | 'hands'
 
-export function FreePlay() {
-  const { puzzleId = 'cube3' } = useParams<{ puzzleId: string }>()
+// The Academy holds the cube with white at the bottom. That is the same cube
+// turned over, so only the colours shown change: white and yellow trade
+// places, and so do green and blue.
+const FLIP_COLORS: Record<string, string> = {
+  '#FFFFFF': '#FFD500',
+  '#FFD500': '#FFFFFF',
+  '#009E60': '#0051BA',
+  '#0051BA': '#009E60',
+}
+
+export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
+  const { puzzleId: routePuzzleId = 'cube3' } = useParams<{ puzzleId: string }>()
+  const lesson = lessonId ? lessonById(lessonId) : undefined
+  const puzzleId = lesson ? 'cube3' : routePuzzleId
   const { plugin, state, moveHistory, status, error } = usePuzzleStore()
   const { load, applyMove, reset, undo, isSolved } = usePuzzleStore()
   const defaultInputMode = useSettingsStore((s) => s.defaultInputMode)
@@ -40,7 +60,7 @@ export function FreePlay() {
   const [inputMode, setInputMode] = useState<InputMode>(defaultInputMode)
   // Hands mode always shows its gesture key until dismissed: there is no
   // other way for a first-time user to discover the vocabulary.
-  const [showHandsHelp, setShowHandsHelp] = useState(true)
+  const [showHandsHelp, setShowHandsHelp] = useState(!lessonId)
   // First-visit mouse tips; dismissal is remembered on this device.
   const [tipsOpen, setTipsOpen] = useState(() => {
     try {
@@ -173,6 +193,107 @@ export function FreePlay() {
     return drainQueue()
   }
 
+  // --- Solution playback ----------------------------------------------------
+  // "Solve for me" finds a solution, then plays it back where it can be paused,
+  // stepped through either way and sped up.
+  const [solution, setSolution] = useState<{ moves: Move[]; index: number } | null>(null)
+  const solutionRef = useRef<{ moves: Move[]; index: number } | null>(null)
+  const [solveStatus, setSolveStatus] = useState<'off' | 'solving' | 'ready'>('off')
+  const solveTokenRef = useRef(0)
+  const solveActiveRef = useRef(false)
+  const [playing, setPlaying] = useState(false)
+  const [speed, setSpeed] = useState<PlaybackSpeed>(1)
+  const setSolutionBoth = (next: { moves: Move[]; index: number } | null) => {
+    solutionRef.current = next
+    setSolution(next)
+  }
+
+  const closeSolution = () => {
+    solveTokenRef.current++
+    solveActiveRef.current = false
+    setPlaying(false)
+    setSolutionBoth(null)
+    setSolveStatus('off')
+  }
+
+  useEffect(() => {
+    if (!playing) return
+    let alive = true
+    void (async () => {
+      await drainQueue()
+      if (!alive) return
+      const s = solutionRef.current
+      if (!s || s.index >= s.moves.length) {
+        setPlaying(false)
+        return
+      }
+      // Count the move first, then play it: pausing at any instant leaves the
+      // index and the cube in agreement.
+      setSolutionBoth({ ...s, index: s.index + 1 })
+      void enqueueMoves([s.moves[s.index]])
+    })()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, solution?.index])
+
+  const stepSolution = (direction: 1 | -1) => {
+    const s = solutionRef.current
+    if (!s || playing) return
+    if (direction === 1 && s.index < s.moves.length) {
+      setSolutionBoth({ ...s, index: s.index + 1 })
+      void enqueueMoves([s.moves[s.index]])
+    } else if (direction === -1 && s.index > 0) {
+      const m = s.moves[s.index - 1]
+      setSolutionBoth({ ...s, index: s.index - 1 })
+      void enqueueMoves([{ alg: m.alg.invert(), snapAngleDeg: m.snapAngleDeg }])
+    }
+  }
+
+  // --- Academy lessons ---------------------------------------------------------
+  const completeLesson = useAcademyStore((s) => s.complete)
+  const [caseIndex, setCaseIndex] = useState(0)
+  const [lessonNote, setLessonNote] = useState<string | null>(null)
+  const [lessonDone, setLessonDone] = useState(false)
+
+  // Put the cube in a lesson's practice position (not animated).
+  const setupCase = (i: number) => {
+    if (!lesson) return
+    stopGuide()
+    setLessonNote(null)
+    setLessonDone(false)
+    moveQueueRef.current = []
+    reset()
+    const c = lesson.cases[i]
+    if (c) for (const m of movesFromAlg(new Alg(c.setup))) applyMove(m)
+    setCaseIndex(i)
+  }
+
+  const checkLesson = () => {
+    if (!lesson) return
+    const { state: now, moveHistory: history } = usePuzzleStore.getState()
+    if (!now) return
+    const met = lesson.goal ? stageDone(lesson.goal, now) : history.length >= 4
+    if (met) {
+      setLessonDone(true)
+      completeLesson(lesson.id)
+    }
+  }
+
+  useEffect(() => {
+    if (lesson && status === 'ready') setupCase(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lesson?.id, plugin, status])
+
+  const showMe = () => {
+    const c = lesson?.cases[caseIndex]
+    if (!lesson || !c) return
+    setupCase(caseIndex)
+    setGuideBoth(createGuide(movesFromAlg(new Alg(c.solution))))
+    setGuideStatus('following')
+  }
+
   // --- Guided solve ------------------------------------------------------
   // Opt-in via "Guide me"; it shows one quarter turn at a time. Moves the user
   // makes are checked against it: the expected move advances, anything else
@@ -219,17 +340,28 @@ export function FreePlay() {
   // Every move the USER makes -- sign, key, drag -- comes through here.
   // (Scramble and Solve feed the queue directly: they aren't the user's.)
   const userMove = (move: Move) => {
-    void enqueueMoves([move])
+    if (solveActiveRef.current) closeSolution()
+    void enqueueMoves([move]).then(checkLesson)
     let g = guideRef.current
     if (!g) return
     for (const step of expandSteps([move])) {
       const r = followMove(g, step)
       if (r.outcome === 'off-track') {
+        if (lesson) {
+          // A lesson's moves are fixed; there is nothing to re-solve.
+          stopGuide()
+          setLessonNote('That was not the move shown. Press Undo to take it back, then Show me again.')
+          return
+        }
         void startGuide()
         return
       }
       g = r.guide
       if (r.outcome === 'finished') {
+        if (lesson) {
+          stopGuide()
+          return
+        }
         // Don't announce "Solved!" while queued turns are still animating --
         // wait for the cube to actually land, and only celebrate if it really
         // is solved; otherwise keep guiding from wherever it ended up.
@@ -254,6 +386,7 @@ export function FreePlay() {
   const handleScramble = async () => {
     if (!plugin) return
     stopGuide()
+    closeSolution()
     setBusy(true)
     setQueueError(null)
     try {
@@ -271,26 +404,42 @@ export function FreePlay() {
 
   const handleReset = () => {
     stopGuide()
+    closeSolution()
     reset()
   }
 
   const handleUndo = () => {
+    closeSolution()
+    setLessonNote(null)
     undo()
-    if (guideRef.current) void startGuide()
+    if (guideRef.current && !lesson) void startGuide()
   }
 
   const handleSolve = async () => {
     if (!plugin || !state) return
     stopGuide()
-    setBusy(true)
+    closeSolution()
+    const token = solveTokenRef.current
+    solveActiveRef.current = true
+    setSolveStatus('solving')
     setQueueError(null)
     try {
-      const moves = await plugin.solve(state, moveHistory)
-      await enqueueMoves(moves)
+      await drainQueue()
+      const { state: now, moveHistory: history } = usePuzzleStore.getState()
+      const moves = await plugin.solve(now!, history)
+      if (token !== solveTokenRef.current) return // stopped or superseded while thinking
+      if (moves.length === 0) {
+        closeSolution()
+        return
+      }
+      setSolutionBoth({ moves, index: 0 })
+      setSolveStatus('ready')
+      setPlaying(true)
     } catch (e) {
-      setQueueError((e as Error).message)
-    } finally {
-      setBusy(false)
+      if (token === solveTokenRef.current) {
+        setQueueError((e as Error).message)
+        closeSolution()
+      }
     }
   }
 
@@ -315,18 +464,28 @@ export function FreePlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, plugin])
 
-  const showMouseTips = inputMode === 'mouse' && tipsOpen
+  const showMouseTips = !lesson && inputMode === 'mouse' && tipsOpen
 
   return (
     <main className="flex h-dvh flex-col overflow-hidden bg-[#16171B] text-[#ECEAE4]">
       <header className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] px-4 py-3 sm:px-6">
-        <Link to="/" className="font-display text-lg font-bold tracking-tight hover:text-[#FFD500]">
-          HandCube
-        </Link>
+        <Logo size={24} />
         <span className="text-white/20" aria-hidden>
           /
         </span>
-        <h1 className="text-sm text-[#9C9AA3]">{plugin?.displayName ?? puzzleId}</h1>
+        {lesson ? (
+          <>
+            <Link to="/learn" className="text-sm text-[#9C9AA3] hover:text-[#ECEAE4]">
+              Learn
+            </Link>
+            <span className="text-white/20" aria-hidden>
+              /
+            </span>
+            <span className="text-sm text-[#9C9AA3]">{lesson.title}</span>
+          </>
+        ) : (
+          <h1 className="text-sm text-[#9C9AA3]">{plugin?.displayName ?? puzzleId}</h1>
+        )}
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <div role="group" aria-label="Control with" className="flex rounded-full bg-[#202227] p-1 text-sm">
@@ -371,6 +530,23 @@ export function FreePlay() {
 
       {status === 'ready' && plugin && state && (
         <>
+          <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          {lesson && (
+            <LessonPanel
+              lesson={lesson}
+              index={lessonIndex(lesson.id)}
+              total={LESSONS.length}
+              caseNumber={caseIndex + 1}
+              caseCount={lesson.cases.length}
+              done={lessonDone}
+              note={lessonNote}
+              guiding={guideStatus !== 'off'}
+              busy={busy}
+              nextLessonId={LESSONS[lessonIndex(lesson.id) + 1]?.id ?? null}
+              onShowMe={showMe}
+              onNewPosition={() => setupCase((caseIndex + 1) % Math.max(1, lesson.cases.length))}
+            />
+          )}
           <div className="relative min-h-0 w-full flex-1">
             <PuzzleCanvas
               plugin={plugin}
@@ -379,6 +555,8 @@ export function FreePlay() {
               className="h-full w-full"
               gestureTick={canvasTick}
               colorblindPalette={colorblindPalette}
+              colorRemap={lesson ? FLIP_COLORS : undefined}
+              turnMs={solveStatus === 'ready' ? Math.round(220 / speed) : undefined}
               animatingMove={animatingMove}
               onAnimationComplete={handleAnimationComplete}
               cameraLocked={cameraLocked}
@@ -410,7 +588,7 @@ export function FreePlay() {
               </div>
             )}
 
-            {showMouseTips && <MouseTips onClose={dismissTips} />}
+            {showMouseTips && <MouseTips onClose={dismissTips} mirror={plugin.id === 'mirror'} />}
 
             {inputMode === 'hands' && (
               <div className="absolute right-4 top-4 w-64 overflow-hidden rounded-xl border border-white/10 bg-[#202227] shadow-lg">
@@ -455,8 +633,48 @@ export function FreePlay() {
             {guideStatus !== 'off' && (
               <GuidePanel guide={guide} status={guideStatus} onStop={stopGuide} showHands={inputMode === 'hands'} />
             )}
+
+            {solveStatus !== 'off' && (
+              <SolutionPlayer
+                status={solveStatus}
+                moves={solution?.moves.map((m) => m.alg.toString()) ?? []}
+                index={solution?.index ?? 0}
+                playing={playing}
+                speed={speed}
+                steps={solution ? expandSteps(solution.moves).length : 0}
+                onPlayPause={() => setPlaying((v) => !v)}
+                onStep={stepSolution}
+                onSpeed={setSpeed}
+                onClose={closeSolution}
+              />
+            )}
+          </div>
           </div>
 
+          {lesson ? (
+            <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-white/[0.07] px-4 py-3 sm:gap-3 sm:px-6">
+              <button type="button" className={BUTTON} onClick={handleUndo} disabled={busy || moveHistory.length === 0}>
+                Undo
+              </button>
+              <button type="button" className={BUTTON} onClick={() => setupCase(caseIndex)} disabled={busy}>
+                Restart position
+              </button>
+              <div className="mx-auto flex items-center gap-3 text-sm">
+                <span
+                  data-testid="lesson-status"
+                  className={`rounded-full px-3 py-1 font-semibold ${lessonDone ? 'bg-[#2FB36B]/15 text-[#4ED48A]' : 'bg-white/5 text-[#9C9AA3]'}`}
+                >
+                  {lessonDone ? 'Complete' : 'In progress'}
+                </span>
+                <span className="tabular-nums text-[#9C9AA3]" data-testid="move-count">
+                  {moveHistory.length} moves
+                </span>
+              </div>
+              <Link to="/learn" className={BUTTON}>
+                All lessons
+              </Link>
+            </footer>
+          ) : (
           <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-white/[0.07] px-4 py-3 sm:gap-3 sm:px-6">
             <button type="button" className={PRIMARY} onClick={() => void handleScramble()} disabled={busy}>
               Scramble
@@ -499,11 +717,12 @@ export function FreePlay() {
               className={BUTTON}
               title="Plays the whole solution for you"
               onClick={() => void handleSolve()}
-              disabled={busy || solved}
+              disabled={busy || solved || solveStatus !== 'off'}
             >
               Solve for me
             </button>
           </footer>
+          )}
 
           {(error || queueError) && <p className="px-6 pb-3 text-sm text-[#EF4444]">{error || queueError}</p>}
         </>
@@ -512,9 +731,9 @@ export function FreePlay() {
   )
 }
 
-const TIPS_KEY = 'handcube.tips.v1'
+const TIPS_KEY = 'cubit.tips.v1'
 
-function MouseTips({ onClose }: { onClose: () => void }) {
+function MouseTips({ onClose, mirror }: { onClose: () => void; mirror: boolean }) {
   return (
     <div
       data-testid="mouse-tips"
@@ -527,8 +746,14 @@ function MouseTips({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <ul className="space-y-1.5">
+        {mirror && (
+          <li>
+            <b className="text-[#ECEAE4]">Solved</b> when the blocks form a perfect cube again. The thick blocks belong on
+            the Right, Top and Front.
+          </li>
+        )}
         <li>
-          <b className="text-[#ECEAE4]">Drag a piece</b> to turn its layer.
+          <b className="text-[#ECEAE4]">Drag a {mirror ? 'block' : 'piece'}</b> to turn its layer.
         </li>
         <li>
           <b className="text-[#ECEAE4]">Drag empty space</b> or right-drag to look around; scroll to zoom.

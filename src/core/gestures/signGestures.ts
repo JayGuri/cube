@@ -214,3 +214,6 @@ export function stepSigns(
   }
   return { next: { hands }, events }
 }
+
+/** One colour per hand, used everywhere a hand is mentioned, so people can tell which to use at a glance. */
+export const HAND_COLOR: Record<Handedness, string> = { Right: '#FFD500', Left: '#4CC9F0' }

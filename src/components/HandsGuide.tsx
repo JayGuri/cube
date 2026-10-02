@@ -1,4 +1,4 @@
-import { POSE_FOR, signForNotation, type ActiveSign, type SignLayer } from '../core/gestures/signGestures'
+import { HAND_COLOR, POSE_FOR, signForNotation, type ActiveSign, type SignLayer } from '../core/gestures/signGestures'
 import { describeStep, type GuideState } from '../core/solvers/solveGuide'
 
 // The in-app gesture key, the live "about to turn" HUD, and the guided-solve
@@ -11,10 +11,7 @@ function poseWords(layer: SignLayer): string {
   return FINGER_NAMES.filter((_, i) => POSE_FOR[layer][i] === '1').join(' + ')
 }
 
-export type HandName = 'Left' | 'Right'
-// One colour per hand, used everywhere a hand is mentioned, so people can tell
-// which hand to use at a glance.
-export const HAND_COLOR: Record<HandName, string> = { Right: '#FFD500', Left: '#4CC9F0' }
+type HandName = 'Left' | 'Right'
 
 /**
  * Four fingers, raised or folded, drawn as the BACK of the given hand as the

@@ -100,6 +100,8 @@ interface PiecesProps {
   gestureTick?: GestureTick | null
   previewLayer?: { axis: Axis; layer: number } | null
   colorblindPalette?: boolean
+  colorRemap?: Record<string, string>
+  turnMs?: number
   // The move currently being visually turned, or null when nothing is
   // animating. Colours stay on the PRE-move state until the rotation
   // finishes, then snap to `state` and onAnimationComplete fires -- see the
@@ -125,6 +127,8 @@ function Pieces({
   gestureTick,
   previewLayer,
   colorblindPalette,
+  colorRemap,
+  turnMs = MOVE_DURATION_MS,
   animatingMove,
   onAnimationComplete,
   onGestureOrbit,
@@ -147,6 +151,10 @@ function Pieces({
   const [colorState, setColorState] = useState(state)
   const stateRef = useRef(state)
   stateRef.current = state
+  const turnMsRef = useRef(turnMs)
+  useEffect(() => {
+    turnMsRef.current = turnMs
+  }, [turnMs])
   const onAnimationCompleteRef = useRef(onAnimationComplete)
   onAnimationCompleteRef.current = onAnimationComplete
 
@@ -161,11 +169,16 @@ function Pieces({
 
   const colors = useMemo(() => {
     const raw = plugin.faceletColors(colorState)
-    if (!colorblindPalette) return raw
+    if (!colorblindPalette && !colorRemap) return raw
     const out = new Map<string, Record<string, string>>()
-    for (const [id, faceColors] of raw) out.set(id, applyColorblindPaletteToColors(faceColors))
+    for (const [id, faceColors] of raw) {
+      const shown = colorRemap
+        ? Object.fromEntries(Object.entries(faceColors).map(([face, hex]) => [face, colorRemap[hex] ?? hex]))
+        : faceColors
+      out.set(id, colorblindPalette ? applyColorblindPaletteToColors(shown) : shown)
+    }
     return out
-  }, [plugin, colorState, colorblindPalette])
+  }, [plugin, colorState, colorblindPalette, colorRemap])
 
   const pieceGroupRefs = useRef(new Map<string, THREE.Group>())
   const activeAnim = useRef<{ axis: Axis; layer: -1 | 0 | 1; angle: number; startedAt: number } | null>(null)
@@ -224,7 +237,7 @@ function Pieces({
   useFrame(() => {
     const anim = activeAnim.current
     if (!anim) return
-    const t = Math.min(1, (performance.now() - anim.startedAt) / MOVE_DURATION_MS)
+    const t = Math.min(1, (performance.now() - anim.startedAt) / turnMsRef.current)
     const angle = anim.angle * easeInOutQuad(t)
     const axisVector = AXIS_VECTOR[anim.axis]
     const axisIdx = AXIS_INDEX[anim.axis]
@@ -429,9 +442,13 @@ export interface PuzzleCanvasProps {
   // Live hand-gesture events (camera orbit/zoom), from useHandGestures.
   gestureTick?: GestureTick | null
   colorblindPalette?: boolean
+  // Shows some colours as others (hex to hex). The Academy flips the cube so
+  // the white layer sits at the bottom, without changing the cube itself.
+  colorRemap?: Record<string, string>
+  // How long one quarter turn takes, in milliseconds.
+  turnMs?: number
   // The move currently animating and a callback for when it finishes turning
-  // (see Pieces above). Callers that don't pass these (Academy, the
-  // AlgorithmTrainer preview) just keep today's instant-snap behaviour.
+  // (see Pieces above). Callers that don't pass these (previews) just snap instantly.
   animatingMove?: Move | null
   onAnimationComplete?: () => void
   // Freezes the view: no camera rotation or zoom from mouse, wheel or hand
@@ -453,6 +470,8 @@ export function PuzzleCanvas({
   className,
   gestureTick,
   colorblindPalette,
+  colorRemap,
+  turnMs,
   animatingMove,
   onAnimationComplete,
   cameraLocked = false,
@@ -564,6 +583,8 @@ export function PuzzleCanvas({
             gestureTick={gestureTick}
             previewLayer={previewLayer}
             colorblindPalette={colorblindPalette}
+            colorRemap={colorRemap}
+            turnMs={turnMs}
             animatingMove={animatingMove}
             onAnimationComplete={onAnimationComplete}
             onGestureOrbit={nudgeOrbit}

@@ -11,9 +11,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'HandCube',
-        short_name: 'HandCube',
-        description: 'Solve twisty puzzles with your hands, entirely in the browser.',
+        name: 'Cubit',
+        short_name: 'Cubit',
+        description: "A Rubik's Cube you control with your hands. Everything runs in your browser.",
         theme_color: '#16171B',
         background_color: '#16171B',
         display: 'standalone',
