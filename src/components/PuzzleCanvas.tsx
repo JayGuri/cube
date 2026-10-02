@@ -1,4 +1,4 @@
-import { OrbitControls } from '@react-three/drei'
+import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
@@ -7,6 +7,9 @@ import { moveFromDrag, AXIS_INDEX, type Axis, type DragInput } from '../core/ges
 import type { GestureTick } from '../core/gestures/useHandGestures'
 import { MoveArrow } from './MoveArrow'
 import { orbitFromHand } from '../core/gestures/handOrbit'
+import { mirrorPiecesOf } from '../core/puzzles/mirror'
+import { pieceBox } from '../core/puzzles/mirror/geometry'
+import { currentSlot } from '../core/puzzles/mirror/pieces'
 import { applyColorblindPaletteToColors } from '../core/puzzles/colorblindPalette'
 import type { Move, PuzzleMesh, PuzzlePlugin, PuzzleState } from '../core/puzzles/PuzzlePlugin'
 
@@ -147,7 +150,30 @@ function Pieces({
 
   const pieceGroupRefs = useRef(new Map<string, THREE.Group>())
   const activeAnim = useRef<{ axis: Axis; layer: -1 | 0 | 1; angle: number; startedAt: number } | null>(null)
-  const piecesById = useMemo(() => new Map(mesh.pieces.map((p) => [p.pieceId, p])), [mesh])
+
+  // Where each piece is drawn and how it is turned. A 3x3 never moves its
+  // meshes -- it repaints stickers -- so every piece stays at its own slot,
+  // unrotated. A Mirror Cube has no stickers: its pieces' SHAPES must travel,
+  // so each one is drawn at the slot and rotation its piece tracker reports.
+  const isMirror = plugin.id === 'mirror'
+  const poses = useMemo(() => {
+    const out = new Map<string, { slot: [number, number, number]; base: THREE.Quaternion }>()
+    if (!isMirror) {
+      for (const p of mesh.pieces) out.set(p.pieceId, { slot: p.slot, base: IDENTITY_QUATERNION })
+      return out
+    }
+    for (const t of mirrorPiecesOf(colorState)) {
+      const r = t.rotation
+      const m = new THREE.Matrix4().set(r[0][0], r[0][1], r[0][2], 0, r[1][0], r[1][1], r[1][2], 0, r[2][0], r[2][1], r[2][2], 0, 0, 0, 0, 1)
+      out.set(`mirror-${t.home[0]}_${t.home[1]}_${t.home[2]}`, {
+        slot: currentSlot(t),
+        base: new THREE.Quaternion().setFromRotationMatrix(m),
+      })
+    }
+    return out
+  }, [isMirror, mesh, colorState])
+  const posesRef = useRef(poses)
+  posesRef.current = poses
 
   // A NEW animatingMove means a move just landed in the store. Figure out
   // whether it is one this renderer knows how to visually turn (cube3 and
@@ -183,15 +209,19 @@ function Pieces({
     const angle = anim.angle * easeInOutQuad(t)
     const axisVector = AXIS_VECTOR[anim.axis]
     const axisIdx = AXIS_INDEX[anim.axis]
+    const turn = new THREE.Quaternion().setFromAxisAngle(axisVector, angle)
     for (const [pieceId, group] of pieceGroupRefs.current) {
-      const piece = piecesById.get(pieceId)
-      const inLayer = piece && piece.slot[axisIdx] === anim.layer
-      if (inLayer) group.quaternion.setFromAxisAngle(axisVector, angle)
-      else if (!group.quaternion.equals(IDENTITY_QUATERNION)) group.quaternion.identity()
+      const pose = posesRef.current.get(pieceId)
+      if (!pose) continue
+      if (pose.slot[axisIdx] === anim.layer) group.quaternion.copy(turn).multiply(pose.base)
+      else if (!group.quaternion.equals(pose.base)) group.quaternion.copy(pose.base)
     }
     if (t >= 1) {
       activeAnim.current = null
-      for (const group of pieceGroupRefs.current.values()) group.quaternion.identity()
+      for (const [pieceId, group] of pieceGroupRefs.current) {
+        const pose = posesRef.current.get(pieceId)
+        if (pose) group.quaternion.copy(pose.base)
+      }
       setColorState(stateRef.current)
       onAnimationCompleteRef.current?.()
     }
@@ -225,14 +255,21 @@ function Pieces({
     }
   }, [camera, onMove, setOrbitEnabled])
 
-  const handleDown = (e: ThreeEvent<PointerEvent>, slot: [number, number, number]) => {
+  const handleDown = (
+    e: ThreeEvent<PointerEvent>,
+    slot: [number, number, number],
+    base: THREE.Quaternion = IDENTITY_QUATERNION,
+  ) => {
     if (!interactive) return
     // Only the left/primary button turns a layer; right-button drags are left
     // alone so OrbitControls (mouseButtons.RIGHT = ROTATE below) can always
     // orbit the camera no matter where the cursor lands on the puzzle.
     if (e.nativeEvent.button !== 0) return
-    const n = e.face?.normal
-    if (!n) return
+    const local = e.face?.normal
+    if (!local) return
+    // The face normal is in the piece's own frame; a turned Mirror Cube piece
+    // needs it rotated into the puzzle's frame first.
+    const n = local.clone().applyQuaternion(base)
     // Only the nearest piece under the cursor should start a drag, and the
     // camera must not orbit while a layer is being turned.
     e.stopPropagation()
@@ -260,6 +297,42 @@ function Pieces({
   return (
     <group>
       {mesh.pieces.map((piece) => {
+        const pose = poses.get(piece.pieceId)
+        if (!pose) return null
+        if (isMirror) {
+          const isDimmed =
+            !activeAnim.current &&
+            previewLayer != null &&
+            pose.slot[AXIS_INDEX[previewLayer.axis]] !== previewLayer.layer
+          const box = pieceBox(piece.slot)
+          // Shrink each block a touch about its own centre so dark seams show
+          // between pieces -- otherwise a solved cube reads as one solid lump.
+          const seam = box.size.map((d) => (d - 0.07) / d) as [number, number, number]
+          return (
+            <group
+              key={piece.pieceId}
+              quaternion={pose.base}
+              ref={(el) => {
+                if (el) pieceGroupRefs.current.set(piece.pieceId, el)
+                else pieceGroupRefs.current.delete(piece.pieceId)
+              }}
+            >
+              <mesh
+                geometry={piece.geometry}
+                position={box.center}
+                scale={seam}
+                userData={{ slot: pose.slot }}
+                onPointerDown={(e) => handleDown(e, pose.slot, pose.base)}
+              >
+                <meshStandardMaterial
+                  color={isDimmed ? '#5A5D63' : '#D4D7DD'}
+                  metalness={0.75}
+                  roughness={0.22}
+                />
+              </mesh>
+            </group>
+          )
+        }
         const faceColors = colors.get(piece.pieceId) ?? {}
         // A selected layer keeps its exact colours and everything else dims,
         // rather than the layer glowing: any glow (coloured or white) shifted
@@ -359,6 +432,10 @@ export function PuzzleCanvas({
   // a theoretical concern. Normalising every puzzle's overall extent to the
   // same target radius keeps one fixed camera framing working for all five.
   const scale = useMemo(() => {
+    // Mirror pieces are placed at their own offsets (see Pieces), not baked
+    // into their geometry, so measuring geometry alone would undercount the
+    // puzzle's size. It is already a 3x3x3 cuboid, cube3's own scale.
+    if (plugin.id === 'mirror') return 1
     const box = new THREE.Box3()
     for (const piece of mesh.pieces) {
       piece.geometry.computeBoundingBox()
@@ -368,7 +445,7 @@ export function PuzzleCanvas({
     const radius = size.length() / 2
     const TARGET_RADIUS = 2.6 // cube3's own natural half-diagonal
     return radius > 1e-6 ? TARGET_RADIUS / radius : 1
-  }, [mesh])
+  }, [mesh, plugin.id])
   // Raycasting only works once the renderer exists; tests and any future
   // loading state need a real signal for that rather than a guessed delay.
   const [ready, setReady] = useState(false)
@@ -431,6 +508,17 @@ export function PuzzleCanvas({
         <ambientLight intensity={0.85} />
         <directionalLight position={[6, 8, 5]} intensity={1.1} />
         <directionalLight position={[-6, -4, -5]} intensity={0.35} />
+        {plugin.id === 'mirror' && (
+          // Polished metal is only silver when it has something to reflect.
+          // A few glowing panels make a soft studio around the cube -- built
+          // in-scene, so nothing is downloaded and it works offline.
+          <Environment resolution={128}>
+            <Lightformer intensity={2.2} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />
+            <Lightformer intensity={1.2} position={[7, 1, 3]} rotation-y={-Math.PI / 2} scale={[8, 4, 1]} />
+            <Lightformer intensity={0.9} position={[-7, 0, -2]} rotation-y={Math.PI / 2} scale={[8, 4, 1]} />
+            <Lightformer intensity={0.6} position={[0, 0, 8]} scale={[10, 3, 1]} />
+          </Environment>
+        )}
         <group scale={scale}>
           <Pieces
             plugin={plugin}

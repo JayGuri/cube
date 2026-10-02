@@ -533,7 +533,7 @@ function MouseTips({ onClose }: { onClose: () => void }) {
       </div>
       <ul className="space-y-1.5">
         <li>
-          <b className="text-[#ECEAE4]">Drag a sticker</b> to turn its layer.
+          <b className="text-[#ECEAE4]">Drag a piece</b> to turn its layer.
         </li>
         <li>
           <b className="text-[#ECEAE4]">Drag empty space</b> or right-drag to look around; scroll to zoom.
