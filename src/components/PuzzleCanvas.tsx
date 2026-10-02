@@ -30,7 +30,7 @@ const AXIS_VECTOR: Record<Axis, THREE.Vector3> = {
 }
 const IDENTITY_QUATERNION = new THREE.Quaternion()
 const DIM_TOWARD = new THREE.Color('#16171B')
-const dim = (hex: string) => `#${new THREE.Color(hex).lerp(DIM_TOWARD, 0.6).getHexString()}`
+const dim = (hex: string) => `#${new THREE.Color(hex).lerp(DIM_TOWARD, 0.3).getHexString()}`
 
 // Fine light/dark streaks, multiplied over the Mirror Cube's blue, read as
 // brushed metal. Drawn once on a canvas and shared by every tile.
@@ -237,10 +237,15 @@ function Pieces({
     }
     if (t >= 1) {
       activeAnim.current = null
-      for (const [pieceId, group] of pieceGroupRefs.current) {
-        const pose = posesRef.current.get(pieceId)
-        if (pose) group.quaternion.copy(pose.base)
-      }
+      // A 3x3 repaints its stickers, so its pieces return to their slots. A
+      // Mirror Cube's pieces stay where the turn left them: snapping back to
+      // the old pose here showed one frame of the pre-turn cube, a visible
+      // jerk at the end of every move, until the new poses rendered.
+      if (!isMirror)
+        for (const [pieceId, group] of pieceGroupRefs.current) {
+          const pose = posesRef.current.get(pieceId)
+          if (pose) group.quaternion.copy(pose.base)
+        }
       setColorState(stateRef.current)
       onAnimationCompleteRef.current?.()
     }
@@ -351,7 +356,7 @@ function Pieces({
                   <mesh key={i}>
                     <boxGeometry args={t} />
                     <meshStandardMaterial
-                      color={isDimmed ? '#2A3550' : '#6A98F0'}
+                      color={isDimmed ? '#4E72BC' : '#6A98F0'}
                       map={brushedTexture()}
                       metalness={0.6}
                       roughness={0.38}
