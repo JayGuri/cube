@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { AVAILABLE_PUZZLE_IDS, isPuzzleAvailable, PUZZLE_REGISTRY } from './registry'
 
 describe('puzzle registry', () => {
-  it('lists only the 3x3', () => {
-    expect(AVAILABLE_PUZZLE_IDS).toEqual(['cube3'])
+  it('lists the 3x3 and the Mirror Cube', () => {
+    expect(AVAILABLE_PUZZLE_IDS).toEqual(['cube3', 'mirror'])
   })
 
   it('isPuzzleAvailable rejects the removed puzzles', () => {
@@ -15,5 +15,10 @@ describe('puzzle registry', () => {
   it('the 3x3 loader produces a plugin with a matching id', async () => {
     const plugin = await PUZZLE_REGISTRY.cube3()
     expect(plugin.id).toBe('cube3')
+  })
+
+  it('the mirror loader produces a plugin with a matching id', async () => {
+    const plugin = await PUZZLE_REGISTRY.mirror()
+    expect(plugin.id).toBe('mirror')
   })
 })
