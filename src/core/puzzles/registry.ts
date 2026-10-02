@@ -5,6 +5,7 @@ import type { PuzzleId, PuzzlePlugin } from './PuzzlePlugin'
 // registry shape is kept so a puzzle can be re-added without touching callers.
 export const PUZZLE_REGISTRY: Record<PuzzleId, () => Promise<PuzzlePlugin>> = {
   cube3: async () => (await import('./cube3')).createCube3Plugin(),
+  mirror: async () => (await import('./mirror')).createMirrorPlugin(),
 }
 
 export function isPuzzleAvailable(id: string): id is PuzzleId {

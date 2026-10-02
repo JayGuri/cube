@@ -22,7 +22,7 @@
 import type { Alg } from 'cubing/alg'
 import type { BufferGeometry } from 'three'
 
-export type PuzzleId = 'cube3'
+export type PuzzleId = 'cube3' | 'mirror'
 
 export interface Move {
   alg: Alg
