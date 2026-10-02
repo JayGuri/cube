@@ -148,68 +148,62 @@ export function GuidePanel({
 }) {
   const step = guide ? guide.steps[guide.index] : null
   const sign = step ? signForNotation(step) : null
-  const upcoming = guide ? guide.steps.slice(guide.index + 1, guide.index + 7) : []
+  const done = guide ? guide.index / guide.steps.length : 0
+  // A slim strip centred just above the cube, so the move and the gold arrow
+  // on the cube sit in one line of sight. It shows only the current move: the
+  // cube itself, not a list of moves, is what the player should be watching.
   return (
     <div
       data-testid="guide-panel"
-      className="absolute bottom-4 right-4 w-72 rounded-xl border border-[#F5B83D]/40 bg-[#202227]/95 p-4 text-xs text-[#9C9AA3] shadow-lg backdrop-blur"
+      className="absolute left-1/2 top-4 z-10 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-4 overflow-hidden rounded-2xl border border-[#F5B83D]/40 bg-[#202227]/90 py-2 pl-4 pr-3 text-sm text-[#9C9AA3] shadow-lg backdrop-blur"
     >
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-base font-bold text-[#F5B83D]">Guided solve</h2>
-        <button type="button" onClick={onStop} className="hover:text-[#ECEAE4]" data-testid="guide-stop">
-          {status === 'done' ? 'Close' : 'Stop'}
-        </button>
-      </div>
-
-      {status === 'solving' && (
-        <p className="mt-2" data-testid="guide-solving">
-          Finding the shortest solution…
-        </p>
-      )}
+      {status === 'solving' && <span data-testid="guide-solving">Finding the shortest solution…</span>}
 
       {status === 'done' && (
-        <p className="mt-2 text-sm text-[#22C55E]" data-testid="guide-done">
+        <span className="text-[#22C55E]" data-testid="guide-done">
           Solved! Scramble again for another one.
-        </p>
+        </span>
       )}
 
       {status === 'following' && guide && step && (
         <>
-          <div className="mt-2 h-1 overflow-hidden rounded bg-white/10">
-            <div className="h-full bg-[#F5B83D]" style={{ width: `${(guide.index / guide.steps.length) * 100}%` }} />
-          </div>
-          <p className="mt-1">
-            Step {guide.index + 1} of {guide.steps.length} · follow the gold arrow on the cube
-          </p>
-          <div className="mt-2 flex items-center gap-3">
-            <span className="font-mono text-4xl font-semibold text-[#ECEAE4]" data-testid="guide-step">
-              {step}
-            </span>
-            <span className="text-sm text-[#ECEAE4]">{describeStep(step)}</span>
-          </div>
-          <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
-            {showHands && sign && (
-              <div className="flex items-center gap-2" data-testid="guide-sign">
-                <PoseIcon layer={sign.layer} />
-                <span>
-                  <b className="text-[#ECEAE4]">{sign.hand} hand</b>: {poseWords(sign.layer)}
+          <span className="font-display text-3xl font-bold text-[#F5B83D]" data-testid="guide-step">
+            {step}
+          </span>
+          <span className="flex flex-col leading-tight">
+            <span className="text-[#ECEAE4]">{describeStep(step)}</span>
+            <span className="text-xs">
+              {showHands && sign ? (
+                <span data-testid="guide-sign">
+                  {sign.hand} hand, {poseWords(sign.layer)}
                 </span>
-              </div>
-            )}
-            <div>
-              Keyboard:{' '}
-              <kbd className="rounded bg-white/10 px-1 font-mono text-[#ECEAE4]">
-                {step.endsWith("'") ? `Shift+${step[0]}` : step[0]}
-              </kbd>
-            </div>
-          </div>
-          {upcoming.length > 0 && (
-            <p className="mt-2 font-mono text-[11px]">
-              Then: {upcoming.join(' ')}
-              {guide.steps.length - guide.index - 1 > upcoming.length ? ' …' : ''}
-            </p>
-          )}
+              ) : (
+                <>
+                  Key{' '}
+                  <kbd className="rounded bg-white/10 px-1 text-[#ECEAE4]">
+                    {step.endsWith("'") ? `Shift+${step[0]}` : step[0]}
+                  </kbd>
+                </>
+              )}{' '}
+              · <span data-testid="guide-progress">{guide.index + 1}/{guide.steps.length}</span>
+            </span>
+          </span>
+          {showHands && sign && <PoseIcon layer={sign.layer} />}
         </>
+      )}
+
+      <button
+        type="button"
+        onClick={onStop}
+        className="ml-1 rounded-full px-2 py-1 hover:bg-white/10 hover:text-[#ECEAE4]"
+        data-testid="guide-stop"
+      >
+        {status === 'done' ? 'Close' : 'Stop'}
+      </button>
+      {status === 'following' && (
+        <span className="absolute inset-x-0 bottom-0 h-0.5 bg-white/10">
+          <span className="block h-full bg-[#F5B83D] transition-[width]" style={{ width: `${done * 100}%` }} />
+        </span>
       )}
     </div>
   )

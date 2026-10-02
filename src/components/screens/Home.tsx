@@ -195,9 +195,6 @@ export function Home() {
         <nav className="flex items-center justify-between text-sm">
           <span className="font-display text-lg font-bold tracking-tight">HandCube</span>
           <div className="flex gap-5 text-[#9C9AA3]">
-            <Link to="/trainer" className="hover:text-[#ECEAE4]">
-              Algorithm trainer
-            </Link>
             <Link to="/settings" className="hover:text-[#ECEAE4]">
               Settings
             </Link>

@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { useCalibrationStore } from '../../state/calibrationStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
 const TOGGLE = (on: boolean) =>
@@ -9,8 +8,6 @@ const KNOB = (on: boolean) =>
 
 export function Settings() {
   const settings = useSettingsStore()
-  const calibrated = useCalibrationStore((s) => s.calibrated)
-  const resetCalibration = useCalibrationStore((s) => s.reset)
 
   return (
     <main className="min-h-dvh bg-[#16171B] px-6 py-12 text-[#ECEAE4]">
@@ -32,17 +29,6 @@ export function Settings() {
               onClick={() => settings.setColorblindPalette(!settings.colorblindPalette)}
             >
               <span className={KNOB(settings.colorblindPalette)} />
-            </button>
-          </Row>
-
-          <Row label="Reduced motion" description="Cuts down on animation for puzzle turns and UI transitions.">
-            <button
-              type="button"
-              data-testid="reduced-motion-toggle"
-              className={TOGGLE(settings.reducedMotion)}
-              onClick={() => settings.setReducedMotion(!settings.reducedMotion)}
-            >
-              <span className={KNOB(settings.reducedMotion)} />
             </button>
           </Row>
 
@@ -72,41 +58,6 @@ export function Settings() {
             </button>
           </Row>
 
-          <Row label="Gesture sensitivity" description="Looser thresholds if pinches/fists aren't registering.">
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={settings.gestureSensitivity}
-              onChange={(e) => settings.setGestureSensitivity(Number(e.target.value))}
-              data-testid="gesture-sensitivity"
-              className="w-32"
-            />
-          </Row>
-
-          <Row
-            label="Gesture calibration"
-            description={calibrated ? 'Calibrated to your hand.' : 'Not yet calibrated -- using defaults.'}
-          >
-            <div className="flex gap-2">
-              <Link
-                to="/calibration"
-                className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#9C9AA3] hover:text-[#ECEAE4]"
-              >
-                Re-run
-              </Link>
-              {calibrated && (
-                <button
-                  type="button"
-                  className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#EF4444]"
-                  onClick={resetCalibration}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </Row>
         </div>
       </div>
     </main>

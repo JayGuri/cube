@@ -5,7 +5,7 @@ import { GestureConfidenceIndicator } from '../GestureConfidenceIndicator'
 import { GuidePanel, HandsKey, SignsHud } from '../HandsGuide'
 import { PuzzleCanvas } from '../PuzzleCanvas'
 import { createFistLockState, fistLockProgress, stepFistLock } from '../../core/gestures/fistLock'
-import { applySensitivity } from '../../core/gestures/GestureRecognizer'
+import { DEFAULT_THRESHOLDS } from '../../core/gestures/GestureRecognizer'
 import { moveFromKey } from '../../core/gestures/KeyboardAdapter'
 import {
   activeSigns,
@@ -18,7 +18,6 @@ import {
 import { createGuide, expandSteps, followMove, type GuideState } from '../../core/solvers/solveGuide'
 import { useHandGestures } from '../../core/gestures/useHandGestures'
 import type { Move, PuzzleId } from '../../core/puzzles/PuzzlePlugin'
-import { useCalibrationStore } from '../../state/calibrationStore'
 import { usePuzzleStore } from '../../state/puzzleStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
@@ -33,14 +32,10 @@ export function FreePlay() {
   const { puzzleId = 'cube3' } = useParams<{ puzzleId: string }>()
   const { plugin, state, moveHistory, status, error } = usePuzzleStore()
   const { load, applyMove, reset, undo, isSolved } = usePuzzleStore()
-  const calibratedThresholds = useCalibrationStore((s) => s.thresholds)
   const defaultInputMode = useSettingsStore((s) => s.defaultInputMode)
   const colorblindPalette = useSettingsStore((s) => s.colorblindPalette)
-  const gestureSensitivity = useSettingsStore((s) => s.gestureSensitivity)
   const swapHands = useSettingsStore((s) => s.swapHands)
-  // The Settings sensitivity slider was previously stored but never applied
-  // anywhere -- moving it did nothing. Layered on top of calibration here.
-  const thresholds = applySensitivity(calibratedThresholds, gestureSensitivity)
+  const thresholds = DEFAULT_THRESHOLDS
 
   const [inputMode, setInputMode] = useState<InputMode>(defaultInputMode)
   // Hands mode always shows its gesture key until dismissed: there is no
@@ -394,7 +389,7 @@ export function FreePlay() {
             {(cameraLocked || lockHoldProgress > 0) && (
               <div
                 data-testid="lock-badge"
-                className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#F5B83D]/40 bg-[#16171B]/90 px-3 py-1 text-sm text-[#F5B83D]"
+                className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-full border border-[#F5B83D]/40 bg-[#16171B]/90 px-3 py-1 text-sm text-[#F5B83D]"
               >
                 {lockHoldProgress > 0 && (
                   <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden>

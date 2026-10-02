@@ -14,7 +14,7 @@ async function where(page: Page) {
   if (await page.getByTestId('guide-done').isVisible()) return 'done'
   if (await page.getByTestId('guide-solving').isVisible()) return 'solving'
   const step = await page.getByTestId('guide-step').textContent()
-  const progress = await page.getByText(/^Step \d+ of \d+/).textContent()
+  const progress = await page.getByTestId('guide-progress').textContent()
   return `${step}|${progress}`
 }
 

@@ -43,3 +43,8 @@ test-results/
 
 # MediaPipe WASM runtime: generated from node_modules by scripts/setup-mediapipe.mjs
 public/mediapipe/wasm/
+
+# Local tooling and scratch files
+.claude/
+.mcp.json
+scratchpad/

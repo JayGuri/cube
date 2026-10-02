@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
-import { AlgorithmTrainer } from './components/screens/AlgorithmTrainer'
-import { Calibration } from './components/screens/Calibration'
-import { FreePlay } from './components/screens/FreePlay'
 import { Home } from './components/screens/Home'
-import { Settings } from './components/screens/Settings'
-import { initSolver } from './core/solvers/kociemba'
+
+// The play screen pulls in three.js, the puzzle engine and MediaPipe glue
+// (~1.5 MB); the home page needs none of it, so each screen loads on demand.
+const FreePlay = lazy(() => import('./components/screens/FreePlay').then((m) => ({ default: m.FreePlay })))
+const Settings = lazy(() => import('./components/screens/Settings').then((m) => ({ default: m.Settings })))
 
 function App() {
   const [solverReady, setSolverReady] = useState(false)
@@ -16,7 +16,8 @@ function App() {
   // a blocking error.
   useEffect(() => {
     let cancelled = false
-    initSolver()
+    import('./core/solvers/kociemba')
+      .then((m) => m.initSolver())
       .catch(() => undefined)
       .finally(() => {
         if (!cancelled) setSolverReady(true)
@@ -29,14 +30,14 @@ function App() {
   return (
     <Router>
       <div data-testid="app" data-solver-ready={solverReady ? 'true' : 'false'}>
+        <Suspense fallback={<div className="min-h-dvh bg-[#16171B]" />}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/play/:puzzleId" element={<FreePlay />} />
-          <Route path="/calibration" element={<Calibration />} />
-          <Route path="/trainer" element={<AlgorithmTrainer />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </div>
     </Router>
   )

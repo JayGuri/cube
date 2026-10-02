@@ -1,20 +1,15 @@
 import { create } from 'zustand'
 
-// spec 10/11.1: localStorage-persisted app-wide settings, distinct from
-// per-user gesture calibration (calibrationStore) which has its own store.
+// App-wide settings, persisted in localStorage.
 
 export type InputModePreference = 'mouse' | 'hands'
 
 export interface SettingsState {
   colorblindPalette: boolean
-  reducedMotion: boolean
   defaultInputMode: InputModePreference
-  gestureSensitivity: number // 0..1, scales pinch/fist threshold looseness
   swapHands: boolean
   setColorblindPalette: (on: boolean) => void
-  setReducedMotion: (on: boolean) => void
   setDefaultInputMode: (mode: InputModePreference) => void
-  setGestureSensitivity: (value: number) => void
   setSwapHands: (on: boolean) => void
 }
 
@@ -22,17 +17,13 @@ const STORAGE_KEY = 'handcube.settings.v1'
 
 interface StoredSettings {
   colorblindPalette: boolean
-  reducedMotion: boolean
   defaultInputMode: InputModePreference
-  gestureSensitivity: number
   swapHands: boolean
 }
 
 const DEFAULTS: StoredSettings = {
   colorblindPalette: false,
-  reducedMotion: false,
   defaultInputMode: 'mouse',
-  gestureSensitivity: 0.5,
   swapHands: false,
 }
 
@@ -62,18 +53,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     persist({ ...get(), colorblindPalette: on })
     set({ colorblindPalette: on })
   },
-  setReducedMotion: (on) => {
-    persist({ ...get(), reducedMotion: on })
-    set({ reducedMotion: on })
-  },
   setDefaultInputMode: (mode) => {
     persist({ ...get(), defaultInputMode: mode })
     set({ defaultInputMode: mode })
-  },
-  setGestureSensitivity: (value) => {
-    const clamped = Math.min(1, Math.max(0, value))
-    persist({ ...get(), gestureSensitivity: clamped })
-    set({ gestureSensitivity: clamped })
   },
   setSwapHands: (on) => {
     persist({ ...get(), swapHands: on })
