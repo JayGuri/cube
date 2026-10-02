@@ -32,8 +32,8 @@ describe('kociemba solver core', () => {
   })
 
   it('returns an empty solution for an empty scramble rather than throwing', async () => {
-    // cube-solver itself throws on empty input; the core must absorb that,
-    // because "already solved" is a completely normal thing for the UI to ask.
+    // "Already solved" is a completely normal thing for the UI to ask about,
+    // so the core answers it with an empty solution rather than an error.
     await expect(solveScramble('')).resolves.toBe('')
     await expect(solveScramble('   ')).resolves.toBe('')
   })
@@ -43,8 +43,8 @@ describe('kociemba solver core', () => {
   })
 
   it('refuses a facelet string instead of silently misbehaving', async () => {
-    // 54 facelet chars are all drawn from URFDLB, so they slip past
-    // cube-solver's own regex and crash deep inside it. Guard explicitly.
+    // 54 facelet characters are all drawn from URFDLB, so they look like an
+    // algorithm. Guard explicitly.
     const facelets = 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB'
     await expect(solveScramble(facelets)).rejects.toThrow()
   })

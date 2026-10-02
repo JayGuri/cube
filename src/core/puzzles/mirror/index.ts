@@ -40,7 +40,7 @@ export async function createMirrorPlugin(): Promise<PuzzlePlugin> {
     },
     isSolved: (state) => cube3.isSolved(rawOf(state).pattern),
     scramble: cube3.scramble,
-    solve: async (_state, history: Move[]) => solveFromHistory(history, 90),
+    solve: async (_state, history: Move[]) => solveFromHistory(history, 90, { keepOrientation: true }),
 
     buildGeometry: buildMirrorGeometry,
     colorScheme: { U: MIRROR_SILVER, D: MIRROR_SILVER, F: MIRROR_SILVER, B: MIRROR_SILVER, R: MIRROR_SILVER, L: MIRROR_SILVER },

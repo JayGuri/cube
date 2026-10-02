@@ -11,23 +11,36 @@ function poseWords(layer: SignLayer): string {
   return FINGER_NAMES.filter((_, i) => POSE_FOR[layer][i] === '1').join(' + ')
 }
 
-/** Four little fingers, raised or folded, drawn as the back of a right hand. */
-function PoseIcon({ layer, size = 22 }: { layer: SignLayer; size?: number }) {
+export type HandName = 'Left' | 'Right'
+// One colour per hand, used everywhere a hand is mentioned, so people can tell
+// which hand to use at a glance.
+export const HAND_COLOR: Record<HandName, string> = { Right: '#FFD500', Left: '#4CC9F0' }
+
+/**
+ * Four fingers, raised or folded, drawn as the BACK of the given hand as the
+ * player sees it: a right hand has its thumb on the left (index first), a left
+ * hand has its thumb on the right (pinky first). So for the left hand, "ring +
+ * pinky" lights the two leftmost fingers, matching the player's own hand.
+ */
+function PoseIcon({ layer, hand = 'Right', size = 22 }: { layer: SignLayer; hand?: HandName; size?: number }) {
   const pose = POSE_FOR[layer]
+  const color = HAND_COLOR[hand]
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-label={poseWords(layer)} className="shrink-0">
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-label={`${hand} hand: ${poseWords(layer)}`} className="shrink-0">
       <rect x="4" y="13" width="16" height="9" rx="3" fill="#2C2E34" />
-      {[0, 1, 2, 3].map((i) => {
-        const up = pose[i] === '1'
+      {[0, 1, 2, 3].map((slot) => {
+        // slot = position from the left of the icon; finger = which finger sits there.
+        const finger = hand === 'Right' ? slot : 3 - slot
+        const up = pose[finger] === '1'
         return (
           <rect
-            key={i}
-            x={5 + i * 4}
+            key={slot}
+            x={5 + slot * 4}
             y={up ? 2 : 10}
             width="3"
             height={up ? 12 : 4}
             rx="1.5"
-            fill={up ? '#FFD500' : '#4B4D55'}
+            fill={up ? color : '#4B4D55'}
           />
         )
       })}
@@ -65,12 +78,12 @@ export function HandsKey({ onClose }: { onClose: () => void }) {
             Use both hands. The <b>fingers</b> pick the layer, the <b>hand</b> picks the direction:
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2 text-center">
-            <div className="rounded-md border border-white/10 py-1.5">
-              <div className="text-[#ECEAE4]">Right hand</div>
+            <div className="rounded-md border py-1.5" style={{ borderColor: HAND_COLOR.Right + '66' }}>
+              <div style={{ color: HAND_COLOR.Right }}>Right hand</div>
               <div>clockwise ↻</div>
             </div>
-            <div className="rounded-md border border-white/10 py-1.5">
-              <div className="text-[#ECEAE4]">Left hand</div>
+            <div className="rounded-md border py-1.5" style={{ borderColor: HAND_COLOR.Left + '66' }}>
+              <div style={{ color: HAND_COLOR.Left }}>Left hand</div>
               <div>counter-clockwise ↺</div>
             </div>
           </div>
@@ -78,7 +91,8 @@ export function HandsKey({ onClose }: { onClose: () => void }) {
           <ul className="mt-2 space-y-1" data-testid="signs-key">
             {LAYERS.map(({ layer, name }) => (
               <li key={layer} className="flex items-center gap-2 border-t border-white/5 pt-1">
-                <PoseIcon layer={layer} />
+                <PoseIcon layer={layer} hand="Right" />
+                <PoseIcon layer={layer} hand="Left" />
                 <span className="w-5 font-mono text-sm text-[#ECEAE4]">{layer}</span>
                 <span className="flex-1">{name}</span>
                 <span className="text-[10px] text-[#6E6C75]">{poseWords(layer)}</span>
@@ -98,7 +112,7 @@ export function HandsKey({ onClose }: { onClose: () => void }) {
   )
 }
 
-function Ring({ progress }: { progress: number }) {
+function Ring({ progress, color }: { progress: number; color: string }) {
   const r = 12
   const c = 2 * Math.PI * r
   return (
@@ -109,7 +123,7 @@ function Ring({ progress }: { progress: number }) {
         cy="15"
         r={r}
         fill="none"
-        stroke={progress >= 1 ? '#22C55E' : '#FFD500'}
+        stroke={progress >= 1 ? '#22C55E' : color}
         strokeWidth="3"
         strokeDasharray={`${progress * c} ${c}`}
         transform="rotate(-90 15 15)"
@@ -124,11 +138,14 @@ export function SignsHud({ signs }: { signs: ActiveSign[] }) {
       {signs.map((s) => (
         <div
           key={s.hand}
-          className="flex items-center gap-2 rounded-xl border border-[#FFD500]/40 bg-[#16171B]/85 px-3 py-1.5"
+          className="flex items-center gap-2 rounded-xl border bg-[#16171B]/85 px-3 py-1.5"
+          style={{ borderColor: HAND_COLOR[s.hand] + '88' }}
         >
-          <Ring progress={s.progress} />
+          <Ring progress={s.progress} color={HAND_COLOR[s.hand]} />
           <span className="font-mono text-xl font-semibold text-[#ECEAE4]">{s.notation}</span>
-          <span className="text-xs text-[#9C9AA3]">{s.hand} hand</span>
+          <span className="text-xs" style={{ color: HAND_COLOR[s.hand] }}>
+            {s.hand} hand
+          </span>
         </div>
       ))}
     </div>
@@ -175,7 +192,7 @@ export function GuidePanel({
             <span className="text-xs">
               {showHands && sign ? (
                 <span data-testid="guide-sign">
-                  {sign.hand} hand, {poseWords(sign.layer)}
+                  <b style={{ color: HAND_COLOR[sign.hand] }}>{sign.hand} hand</b>, {poseWords(sign.layer)}
                 </span>
               ) : (
                 <>
@@ -188,7 +205,7 @@ export function GuidePanel({
               · <span data-testid="guide-progress">{guide.index + 1}/{guide.steps.length}</span>
             </span>
           </span>
-          {showHands && sign && <PoseIcon layer={sign.layer} />}
+          {showHands && sign && <PoseIcon layer={sign.layer} hand={sign.hand} size={30} />}
         </>
       )}
 

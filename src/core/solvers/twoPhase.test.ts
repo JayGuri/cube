@@ -1,0 +1,88 @@
+import { Alg } from 'cubing/alg'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { applyMove, createInitialState, initCube3Logic, isSolved, movesFromAlg } from '../puzzles/cube3/logic'
+import { solveScramble } from './kociembaCore'
+import { initTwoPhase, solveTwoPhase } from './twoPhase'
+
+// Deterministic pseudo-random numbers, so a failure can be reproduced.
+function rng(seed: number) {
+  return () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    return seed / 2 ** 32
+  }
+}
+
+function randomTurns(next: () => number, tokens: string[], length: number): string {
+  const out: string[] = []
+  for (let i = 0; i < length; i++) out.push(tokens[Math.floor(next() * tokens.length)] + ['', "'", '2'][Math.floor(next() * 3)])
+  return out.join(' ')
+}
+
+// cubing.js is an independent implementation: apply scramble then solution.
+function solvedAfter(scramble: string, solution: string): boolean {
+  let state = createInitialState()
+  for (const m of movesFromAlg(new Alg(`${scramble} ${solution}`))) state = applyMove(state, m)
+  return isSolved(state)
+}
+
+const quarterTurns = (s: string) => s.split(/\s+/).filter(Boolean).reduce((n, m) => n + (m.includes('2') ? 2 : 1), 0)
+
+describe('two-phase solver', () => {
+  beforeAll(async () => {
+    await initCube3Logic()
+    initTwoPhase()
+  }, 60_000)
+
+  it('returns nothing for a solved cube', () => {
+    expect(solveTwoPhase('')).toBe('')
+    expect(solveTwoPhase("R R'")).toBe('')
+  })
+
+  it('REGRESSION: a position one turn away is solved by that one turn undone', () => {
+    expect(solveTwoPhase('R', { timeMs: 50 })).toBe("R'")
+    expect(solveTwoPhase('R2', { timeMs: 50 })).toBe('R2')
+    expect(solveTwoPhase('R U', { timeMs: 50 })).toBe("U' R'")
+  })
+
+  it('solves random cubes, as judged by cubing.js, in a reasonable number of turns', () => {
+    const next = rng(42)
+    for (let i = 0; i < 25; i++) {
+      const scramble = randomTurns(next, ['U', 'R', 'F', 'D', 'L', 'B'], 25)
+      const solution = solveTwoPhase(scramble, { timeMs: 100 })
+      expect(solvedAfter(scramble, solution), scramble).toBe(true)
+      expect(quarterTurns(solution), scramble).toBeLessThanOrEqual(40)
+    }
+  }, 60_000)
+
+  it('keeps improving: more time never gives a longer answer', () => {
+    const scramble = "F R U' B2 L D' R2 U F' L2 B D2 R' U2 F2 L' B' D"
+    const quick = quarterTurns(solveTwoPhase(scramble, { timeMs: 0 }))
+    const patient = quarterTurns(solveTwoPhase(scramble, { timeMs: 1200 }))
+    expect(patient).toBeLessThanOrEqual(quick)
+    expect(patient).toBeLessThanOrEqual(36)
+  }, 30_000)
+
+  it('solves the superflip, a famously hard position', () => {
+    const superflip = "U R2 F B R B2 R U2 L B2 R U' D' R2 F R' L B2 U2 F2"
+    const solution = solveTwoPhase(superflip, { timeMs: 1500 })
+    expect(solvedAfter(superflip, solution)).toBe(true)
+    // The proven best is 20 face turns (24 steps); we do not aim for optimal.
+    expect(quarterTurns(solution)).toBeLessThanOrEqual(36)
+  }, 30_000)
+})
+
+describe('solving histories with slice turns and rotations', () => {
+  beforeAll(async () => {
+    await initCube3Logic()
+    initTwoPhase()
+  }, 60_000)
+
+  it('solves cubes that were made with M, E, S, x, y and z', async () => {
+    const next = rng(7)
+    for (let i = 0; i < 25; i++) {
+      const scramble = randomTurns(next, ['U', 'R', 'F', 'D', 'L', 'B', 'M', 'E', 'S', 'x', 'y', 'z'], 14)
+      const solution = await solveScramble(scramble, 60)
+      expect(solvedAfter(scramble, solution), scramble).toBe(true)
+    }
+  }, 60_000)
+})

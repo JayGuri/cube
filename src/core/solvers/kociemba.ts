@@ -58,20 +58,28 @@ export async function initSolver(): Promise<void> {
 
 // The solver needs the sequence that produced the current state, not the state
 // itself -- see the spike notes at the top of kociembaCore.ts.
-export async function solveFromHistory(history: Move[], snapAngleDeg = 90): Promise<Move[]> {
+export async function solveFromHistory(
+  history: Move[],
+  snapAngleDeg = 90,
+  // The Mirror Cube is only solved when it is also held the way it started
+  // (its blocks differ in size), so a slice turn or rotation in the history
+  // can't be absorbed by turning the whole cube.
+  { keepOrientation = false }: { keepOrientation?: boolean } = {},
+): Promise<Move[]> {
   const scramble = history.map((m) => m.alg.toString()).join(' ').trim()
   if (scramble.length === 0) return []
   const toMoves = (alg: Alg): Move[] =>
     [...alg.childAlgNodes()].map((node) => ({ alg: new Alg([node]), snapAngleDeg }))
 
   // Two valid ways back to solved; use whichever takes fewer turns.
-  //  1. Kociemba's two-phase solution. Short for real scrambles, but the
-  //     library stops at its first good answer, so it can be far longer than
-  //     needed -- a 3-move position came back as a 21-turn solution.
+  //  1. Our two-phase (Kociemba) solution: it keeps searching for shorter
+  //     answers, from six points of view, for a fraction of a second. It is
+  //     not guaranteed optimal -- no fast solver is -- but it is short.
   //  2. Undoing the history in reverse, with cancelling moves merged
   //     (R R' vanishes, R R becomes R2). Always correct, and unbeatable when
   //     the cube is only a few moves from solved.
   const undo = toMoves(new Alg(scramble).invert().experimentalSimplify({ cancel: true }))
+  if (keepOrientation && /[MESxyz]/.test(scramble)) return undo
   const solution = await ask('solve', scramble)
   const kociemba = solution.trim() ? toMoves(new Alg(solution)) : []
   return quarterTurns(undo) <= quarterTurns(kociemba) ? undo : kociemba
