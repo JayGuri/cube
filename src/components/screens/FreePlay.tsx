@@ -161,7 +161,7 @@ export function FreePlay() {
   }
 
   // --- Guided solve ------------------------------------------------------
-  // Scramble starts it; it shows one quarter turn at a time. Moves the user
+  // Opt-in via "Guide me"; it shows one quarter turn at a time. Moves the user
   // makes are checked against it: the expected move advances, anything else
   // (or an Undo) re-solves from where the cube actually is, so the remaining
   // steps are always the shortest Kociemba finds from the real position.
@@ -252,7 +252,8 @@ export function FreePlay() {
     } finally {
       setBusy(false)
     }
-    void startGuide()
+    // No guide here on purpose: after a scramble the user solves it
+    // themselves by default, and opts in with "Guide me" if they want help.
   }
 
   const handleReset = () => {

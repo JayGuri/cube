@@ -18,6 +18,14 @@ async function where(page: Page) {
   return `${step}|${progress}`
 }
 
+// Scramble, wait for it to land, then opt in to the guide.
+async function scrambleThenGuide(page: Page) {
+  await page.getByRole('button', { name: /scramble/i }).click()
+  await expect(page.getByTestId('guide-me')).toBeEnabled({ timeout: 30_000 })
+  await page.getByTestId('guide-me').click()
+  await expect(page.getByTestId('guide-step')).toBeVisible({ timeout: 30_000 })
+}
+
 async function followToTheEnd(page: Page) {
   for (let i = 0; i < 80; i++) {
     if (await page.getByTestId('guide-done').isVisible()) return
@@ -31,11 +39,10 @@ async function followToTheEnd(page: Page) {
   }
 }
 
-test('Scramble starts a guided solve; following every shown step solves the cube', async ({ page }) => {
+test('Guide me after a scramble: following every shown step solves the cube', async ({ page }) => {
   test.setTimeout(150_000)
   await open(page)
-  await page.getByRole('button', { name: /scramble/i }).click()
-  await expect(page.getByTestId('guide-step')).toBeVisible({ timeout: 30_000 })
+  await scrambleThenGuide(page)
   await expect(page.getByTestId('solved-status')).toHaveText('Scrambled')
   // The arrow on the cube points at the shown step.
   const step = (await page.getByTestId('guide-step').textContent())!.trim()
@@ -49,8 +56,7 @@ test('Scramble starts a guided solve; following every shown step solves the cube
 test('a wrong move re-solves from where the cube really is, and the guide still finishes', async ({ page }) => {
   test.setTimeout(150_000)
   await open(page)
-  await page.getByRole('button', { name: /scramble/i }).click()
-  await expect(page.getByTestId('guide-step')).toBeVisible({ timeout: 30_000 })
+  await scrambleThenGuide(page)
 
   const step = (await page.getByTestId('guide-step').textContent())!.trim()
   await page.keyboard.press(oppositeKey(step))
@@ -60,10 +66,18 @@ test('a wrong move re-solves from where the cube really is, and the guide still 
   await expect(page.getByTestId('solved-status')).toHaveText('Solved')
 })
 
-test('Stop, Guide me, and Reset', async ({ page }) => {
+test('Scramble alone does not open the guide -- you solve it yourself by default', async ({ page }) => {
   await open(page)
   await page.getByRole('button', { name: /scramble/i }).click()
-  await expect(page.getByTestId('guide-step')).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId('solved-status')).toHaveText('Scrambled', { timeout: 30_000 })
+  await expect(page.getByTestId('guide-me')).toBeEnabled({ timeout: 30_000 })
+  await page.waitForTimeout(1500)
+  await expect(page.getByTestId('guide-panel')).toHaveCount(0)
+})
+
+test('Stop, Guide me, and Reset', async ({ page }) => {
+  await open(page)
+  await scrambleThenGuide(page)
   await page.getByTestId('guide-stop').click()
   await expect(page.getByTestId('guide-panel')).toHaveCount(0)
   await page.getByTestId('guide-me').click()
