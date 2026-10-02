@@ -6,6 +6,6 @@ test('settings screen toggles persist across reload', async ({ page }) => {
   await page.reload()
   // The toggle's persisted state is verified via localStorage directly, since
   // the visual knob position is a CSS detail, not the contract under test.
-  const stored = await page.evaluate(() => localStorage.getItem('cubit.settings.v1'))
+  const stored = await page.evaluate(() => localStorage.getItem('palmtwist.settings.v1'))
   expect(stored).toContain('"colorblindPalette":true')
 })

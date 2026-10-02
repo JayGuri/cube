@@ -16,7 +16,7 @@ export function Academy() {
     <main className="min-h-dvh bg-[#16171B] text-[#ECEAE4]">
       <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
         <nav className="flex items-center justify-between text-sm">
-          <Logo />
+          <Logo size={40} />
           <Link to="/play/cube3" className="text-[#9C9AA3] hover:text-[#ECEAE4]">
             Free play
           </Link>

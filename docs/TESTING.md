@@ -1,4 +1,4 @@
-# Cubit manual test checklist
+# Palmtwist manual test checklist
 
 Run `npm run dev`, open the URL it prints, then **Start solving**. Tick each
 box; for anything that fails, note *what you did* and *what happened instead*.
@@ -95,7 +95,7 @@ Check the tracking indicator says "Tracking well" before each test.
 - [ ] The left hand's icon puts the pinky on the left (ring + pinky lights the two leftmost bars). Right hand is yellow, left hand is blue everywhere.
 - [ ] The three puzzle tiles lead to the 3x3, the Mirror Cube and the Academy.
 - [ ] The "How to turn the cube" card appears on first visit and stays hidden after you close it.
-- [ ] The tab shows the Cubit cube icon, not the default Vite one.
+- [ ] The tab shows the Palmtwist cube icon, not the default Vite one.
 
 ## 10. Feel and tuning
 - [ ] Is the hold before a sign turns too long or too short?

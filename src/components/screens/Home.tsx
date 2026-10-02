@@ -82,8 +82,8 @@ export function Home() {
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[46rem] bg-[radial-gradient(45%_45%_at_78%_32%,rgba(76,201,240,0.16),transparent),radial-gradient(35%_35%_at_58%_62%,rgba(255,213,0,0.10),transparent)]"
         />
 
-        <nav className="flex items-center justify-between text-sm">
-          <Logo />
+        <nav className="flex items-center justify-between text-base">
+          <Logo size={44} />
           <div className="flex items-center gap-5 text-[#9C9AA3]">
             <Link to="/learn" className="hover:text-[#ECEAE4]">
               Learn
@@ -196,7 +196,7 @@ export function Home() {
               Built from scratch.
             </h2>
             <p className="mt-4 max-w-sm text-[#B2B0B9]">
-              Cubit has no server. The tracking, the solver and the 3D all run in your browser.
+              Palmtwist has no server. The tracking, the solver and the 3D all run in your browser.
             </p>
             <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm">
               <a href={`${GITHUB}/blob/main/docs/MATH.md`} target="_blank" rel="noreferrer" className="text-[#4CC9F0] underline-offset-4 hover:underline">
@@ -218,7 +218,7 @@ export function Home() {
         </section>
 
         <footer className="mt-28 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-8 text-sm text-[#9C9AA3]">
-          <Logo size={22} />
+          <Logo size={32} />
           <p>
             Made by{' '}
             <a href="https://github.com/JayGuri" target="_blank" rel="noreferrer" className="text-[#ECEAE4] underline-offset-4 hover:underline">

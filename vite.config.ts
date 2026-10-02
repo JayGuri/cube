@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: false,
       manifest: {
-        name: 'Cubit',
-        short_name: 'Cubit',
+        name: 'Palmtwist',
+        short_name: 'Palmtwist',
         description: "A Rubik's Cube you control with your hands. Everything runs in your browser.",
         theme_color: '#16171B',
         background_color: '#16171B',
