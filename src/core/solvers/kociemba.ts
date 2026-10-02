@@ -61,10 +61,23 @@ export async function initSolver(): Promise<void> {
 export async function solveFromHistory(history: Move[], snapAngleDeg = 90): Promise<Move[]> {
   const scramble = history.map((m) => m.alg.toString()).join(' ').trim()
   if (scramble.length === 0) return []
+  const toMoves = (alg: Alg): Move[] =>
+    [...alg.childAlgNodes()].map((node) => ({ alg: new Alg([node]), snapAngleDeg }))
+
+  // Two valid ways back to solved; use whichever takes fewer turns.
+  //  1. Kociemba's two-phase solution. Short for real scrambles, but the
+  //     library stops at its first good answer, so it can be far longer than
+  //     needed -- a 3-move position came back as a 21-turn solution.
+  //  2. Undoing the history in reverse, with cancelling moves merged
+  //     (R R' vanishes, R R becomes R2). Always correct, and unbeatable when
+  //     the cube is only a few moves from solved.
+  const undo = toMoves(new Alg(scramble).invert().experimentalSimplify({ cancel: true }))
   const solution = await ask('solve', scramble)
-  if (!solution.trim()) return []
-  return [...new Alg(solution).childAlgNodes()].map((node) => ({
-    alg: new Alg([node]),
-    snapAngleDeg,
-  }))
+  const kociemba = solution.trim() ? toMoves(new Alg(solution)) : []
+  return quarterTurns(undo) <= quarterTurns(kociemba) ? undo : kociemba
+}
+
+/** Turns as a person makes them: a half turn (R2, R2') counts as two. */
+export function quarterTurns(moves: Move[]): number {
+  return moves.reduce((n, m) => n + (/2/.test(m.alg.toString()) ? 2 : 1), 0)
 }
