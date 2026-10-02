@@ -14,6 +14,7 @@ school algebra. Each section ends with **where it lives in the code**.
 8. [The Kociemba algorithm](#8-the-kociemba-algorithm)
 9. [The guided solve](#9-the-guided-solve)
 10. [Colour](#10-colour)
+11. [The Mirror Cube](#11-the-mirror-cube)
 
 ---
 
@@ -365,13 +366,16 @@ phase-1 solutions to shrink the **total**, landing very close to optimal
 
 ### What this app's solver actually does — honestly
 
-The app uses the `cube-solver` package's two-phase solver, which returns the
-**first good** solution it finds instead of continuing to hunt for a shorter
-one. Solutions are always correct (tests check them against cubing.js) and
-typically around 20–23 moves for a random scramble, but **not guaranteed to be
-the shortest** — it "solves" a single `R` with 8 moves rather than `R'`. A
-solver that keeps searching would give shorter solutions; that's a known,
-documented trade-off, not a bug.
+The `cube-solver` package's two-phase solver returns the **first good**
+solution it finds instead of hunting for a shorter one. On a real scramble
+that's typically 20–23 moves; on a cube only a few turns from solved it can be
+silly (three turns came back as a 21-turn solution).
+
+So the app also computes a second, always-valid route: **undo your moves in
+reverse**, using the group rule from section 3, `(A B)' = B' A'`, with
+cancelling moves merged (`R R'` disappears, `R R` becomes `R2`). It keeps
+whichever route takes fewer quarter turns. Neither is guaranteed to be the
+true shortest, but you never get a long solution when a short undo exists.
 
 **In the code:** `src/core/solvers/kociembaCore.ts` (wrapper and its findings),
 `kociemba.worker.ts` (runs it off the main thread), `kociemba.ts`
@@ -415,6 +419,44 @@ vivid.
 
 **In the code:** `CUBE3_COLORS` in `src/core/puzzles/cube3/geometry.ts`, and
 `src/core/puzzles/colorblindPalette.ts`.
+
+---
+
+## 11. The Mirror Cube
+
+A Mirror Cube turns exactly like a 3x3 — same moves, same group of 4.3 × 10¹⁹
+positions — but every piece is one colour and a **different size**, so you
+solve it by shape.
+
+**Sizes.** Each axis is split into three slabs. The middle slab is 1.0 thick
+and centred; the outer slabs differ: right 1.40, left 0.60, up 1.25, down 0.75,
+front 1.15, back 0.85. A piece's box is the product of its three slabs, e.g. the
+up-front-right corner is 1.40 × 1.25 × 1.15. Each axis totals 3.0, so the
+solved puzzle is a 3 × 3 × 3 block, just off-centre.
+
+**Why keep the middles centred?** Then every centre piece is a 1 × 1 square sitting
+on its own axis, and turning it doesn't change its outline. So the solved
+*shape* is exactly the 3x3's solved state with centre orientation ignored —
+which is what the Kociemba solver solves. (A real Mirror Blocks offsets its
+middles too, which makes the centres' rotation visible and needs extra
+centre-twisting algorithms.) All six outer thicknesses are distinct and none is
+1.0, so every corner and edge has a unique shape and visibly shows if it's
+twisted.
+
+**Tracking shapes.** Colours don't move on a 3x3 renderer — stickers are
+repainted. Shapes have to physically travel, so each piece keeps a
+**rotation matrix** `M` (3 × 3, entries −1/0/1). Its current slot is
+`M · home`. A move rotates every piece in the turning layer by the same 90°
+matrix `T`: `M ← T · M`. Drawing the piece's home-sized box rotated by `M` puts
+the right shape in the right place, the right way round.
+
+**Checking it against reality.** Run the same tracker on the coloured 3x3: a
+piece's home sticker colour, rotated by `M`, must land exactly where cubing.js
+says that colour is. 25 random 25-move sequences all match, so the shapes are
+right too.
+
+**In the code:** `src/core/puzzles/mirror/` (`pieces.ts`, `geometry.ts`,
+`index.ts`), and the pose-based piece rendering in `PuzzleCanvas.tsx`.
 
 ---
 

@@ -49,7 +49,9 @@ Check the tracking indicator says "Tracking well" before each test.
 - [ ] With the view locked, neither of these moves the camera.
 
 ## 5. Guided solve
-- [ ] Press **Scramble**: the cube scrambles, then the Guided solve panel appears.
+- [ ] Press **Scramble**: the cube scrambles and **no guide appears** — you solve it yourself.
+- [ ] Press **Guide me**: the Guided solve panel appears.
+- [ ] Make 2–3 turns from solved, then **Guide me**: it shows just those turns undone (not a long solution).
 - [ ] The gold arrow wraps the layer named in the panel, pointing the way it turns.
 - [ ] Doing the shown move (sign, key, or drag) advances to the next step.
 - [ ] Doing a **different** move: the panel shows "Finding the shortest solution…", then new steps from where the cube is now.
@@ -58,7 +60,18 @@ Check the tracking indicator says "Tracking well" before each test.
 - [ ] **Stop** hides the guide; **Guide me** brings it back.
 - [ ] **Reset** and **Solve** both end the guide.
 
-## 6. Feel and tuning (no right answer — just tell me)
+## 6. Mirror Cube (Home › Mirror Cube)
+- [ ] It's silver, and a solved cube is a clean block whose layers have different thicknesses.
+- [ ] Any turn changes the outline — pieces of different sizes stick out.
+- [ ] A turn then its opposite (e.g. `R` then `Shift+R`) returns the clean block and shows Solved.
+- [ ] Dragging a piece turns a layer, also after several turns.
+- [ ] Scramble, Solve for me, Guide me (with the arrow) and hand signs all work as on the 3x3.
+
+## 7. Look and feel
+- [ ] Home explains what the app is and lets you choose between the two cubes.
+- [ ] The "How to turn the cube" card appears on first visit and stays hidden after you close it.
+
+## 8. Feel and tuning (no right answer — just tell me)
 - [ ] Is the hold before a sign turns too long or too short?
 - [ ] Are any signs hard to make or often misread? Which ones?
 - [ ] Is hand-orbit too fast or too slow?
