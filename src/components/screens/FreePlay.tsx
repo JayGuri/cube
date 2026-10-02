@@ -543,6 +543,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
               guiding={guideStatus !== 'off'}
               busy={busy}
               nextLessonId={LESSONS[lessonIndex(lesson.id) + 1]?.id ?? null}
+              signMoves={lesson.algorithm?.moves ?? lesson.cases[caseIndex]?.solution ?? ''}
               onShowMe={showMe}
               onNewPosition={() => setupCase((caseIndex + 1) % Math.max(1, lesson.cases.length))}
             />
@@ -631,7 +632,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
             {signsActive && heldSigns.length > 0 && <SignsHud signs={heldSigns} />}
 
             {guideStatus !== 'off' && (
-              <GuidePanel guide={guide} status={guideStatus} onStop={stopGuide} showHands={inputMode === 'hands'} />
+              <GuidePanel guide={guide} status={guideStatus} onStop={stopGuide} showHands={inputMode === 'hands' || Boolean(lesson)} />
             )}
 
             {solveStatus !== 'off' && (

@@ -86,3 +86,20 @@ describe('solving histories with slice turns and rotations', () => {
     }
   }, 60_000)
 })
+
+describe('solution length', () => {
+  beforeAll(() => initTwoPhase(), 60_000)
+
+  it('REGRESSION: random scrambles average well under 30 steps after a short search', () => {
+    const next = rng(2024)
+    let total = 0
+    const runs = 6
+    for (let i = 0; i < runs; i++) {
+      const scramble = randomTurns(next, ['U', 'R', 'F', 'D', 'L', 'B'], 30)
+      const solution = solveTwoPhase(scramble, { timeMs: 500 })
+      expect(solvedAfter(scramble, solution)).toBe(true)
+      total += quarterTurns(solution)
+    }
+    expect(total / runs).toBeLessThan(29)
+  }, 60_000)
+})

@@ -74,7 +74,7 @@ export function SignPlayground() {
     <div className="grid items-center gap-10 md:grid-cols-[1fr_1fr]">
       <div>
         <div role="group" aria-label="Which hand" className="inline-flex rounded-full bg-black/30 p-1 text-sm">
-          {(['Right', 'Left'] as Hand[]).map((h) => (
+          {(['Left', 'Right'] as Hand[]).map((h) => (
             <button
               key={h}
               type="button"

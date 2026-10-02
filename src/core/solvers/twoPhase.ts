@@ -220,8 +220,14 @@ function buildMoveTable<T extends Uint8Array | Uint16Array>(
 }
 
 /**
- * Breadth-first search outward from the goal over combined coordinates. Moves
- * can be undone, so the distance from the goal equals the distance to it.
+ * Search outward from the goal over combined coordinates, recording the exact
+ * COST still needed, where a quarter turn costs 1 and a half turn costs 2 --
+ * the same count the on-screen guide uses. Moves can be undone at the same
+ * cost, so the distance from the goal equals the distance to it.
+ *
+ * It is breadth-first by cost level. A half turn can reach a state at level
+ * d + 2 before a quarter turn from another state reaches it at d + 1, so a
+ * state's level is lowered when a cheaper way turns up.
  */
 function buildPrune(
   n1: number,
@@ -234,22 +240,23 @@ function buildPrune(
 ): Int8Array {
   const dist = new Int8Array(n1 * n2).fill(-1)
   dist[goal1 * n2 + goal2] = 0
-  for (let depth = 0; ; depth++) {
-    let added = 0
+  let deepest = 0
+  for (let level = 0; level <= deepest; level++) {
     for (let i = 0; i < dist.length; i++) {
-      if (dist[i] !== depth) continue
+      if (dist[i] !== level) continue
       const a = (i / n2) | 0
       const b = i - a * n2
       for (const m of moves) {
         const next = move1[a * N_MOVES + m] * n2 + move2[b * N_MOVES + m]
-        if (dist[next] < 0) {
-          dist[next] = depth + 1
-          added++
+        const cost = level + quarterCost(m)
+        if (dist[next] < 0 || dist[next] > cost) {
+          dist[next] = cost
+          if (cost > deepest) deepest = cost
         }
       }
     }
-    if (!added) return dist
   }
+  return dist
 }
 
 /** Builds the move and pruning tables once (about a second). Safe to call repeatedly. */
@@ -303,7 +310,7 @@ export function isTwoPhaseReady(): boolean {
 
 // ---- Search --------------------------------------------------------------
 export interface SolveOptions {
-  /** After the first solution, keep looking for a shorter one for up to this long. Default 800 ms. */
+  /** After the first solution, keep looking for a shorter one for up to this long. Default 1500 ms. */
   timeMs?: number
 }
 
@@ -356,15 +363,17 @@ function searchOnce(scramble: string, { timeMs, bound }: SearchOptions): string 
 
   const path: number[] = []
 
-  // Phase 2: finish inside G1. Returns true once it has recorded a better solution.
-  function phase2(cp: number, ue: number, sp: number, depthLeft: number, last: number, cost: number): boolean {
+  // Phase 2: finish inside G1 at a cost of at most `limit` more quarter turns.
+  // The pruning value never over-estimates the cost, so the first success at
+  // the smallest limit that has one is the cheapest way to finish.
+  function phase2(cp: number, ue: number, sp: number, spent: number, limit: number, last: number, base: number): boolean {
     tick()
     if (timeUp) return false
     const h = Math.max(t.prune2Corner[sp * N_PERM8 + cp], t.prune2Edge[sp * N_PERM8 + ue])
-    if (h > depthLeft || cost + h >= bestCost) return false
-    if (depthLeft === 0) {
+    if (spent + h > limit) return false
+    if (h === 0) {
       best = [...path]
-      bestCost = cost
+      bestCost = base + spent
       return true
     }
     for (const m of PHASE2_MOVES) {
@@ -374,9 +383,10 @@ function searchOnce(scramble: string, { timeMs, bound }: SearchOptions): string 
         t.cpermMove[cp * N_MOVES + m],
         t.uedgeMove[ue * N_MOVES + m],
         t.spermMove[sp * N_MOVES + m],
-        depthLeft - 1,
+        spent + quarterCost(m),
+        limit,
         m,
-        cost + quarterCost(m),
+        base,
       )
       path.pop()
       if (found) return true
@@ -384,8 +394,8 @@ function searchOnce(scramble: string, { timeMs, bound }: SearchOptions): string 
     return false
   }
 
-  // Hand a phase-1 ending to phase 2.
-  function finishWithPhase2(cost: number): void {
+  // Hand a phase-1 ending (which cost `base`) to phase 2.
+  function finishWithPhase2(base: number): void {
     // Replay the phase-1 moves to learn the permutation coordinates.
     let cube = start
     for (const m of path) cube = multiply(cube, MOVES[m])
@@ -393,22 +403,25 @@ function searchOnce(scramble: string, { timeMs, bound }: SearchOptions): string 
     const ue = permRank(cube.ep.slice(0, 8), 8)
     const sp = permRank(cube.ep.slice(8).map((e) => e - 8), 4)
     const last = path.length ? path[path.length - 1] : -1
-    const maxDepth = Math.min(18, bestCost - cost - 1)
-    for (let d = 0; d <= maxDepth && !timeUp; d++) {
-      if (phase2(cp, ue, sp, d, last, cost)) return
+    const floor = Math.max(t.prune2Corner[sp * N_PERM8 + cp], t.prune2Edge[sp * N_PERM8 + ue])
+    for (let limit = floor; base + limit < bestCost && !timeUp; limit++) {
+      if (phase2(cp, ue, sp, 0, limit, last, base)) return
     }
   }
 
-  // Phase 1: reach G1 in exactly `depthLeft` more moves.
-  function phase1(tw: number, fl: number, sl: number, depthLeft: number, last: number, cost: number): void {
+  // Phase 1: reach G1 at a cost of exactly `threshold` quarter turns. Raising
+  // the threshold one step at a time is IDA*; a state that reaches G1 for less
+  // was already found at a lower threshold.
+  let threshold = 0
+  function phase1(tw: number, fl: number, sl: number, spent: number, last: number): void {
     tick()
     if (timeUp) return
     const h = Math.max(t.prune1Twist[sl * N_TWIST + tw], t.prune1Flip[sl * N_FLIP + fl])
-    if (h > depthLeft || cost + h >= bestCost) return
-    if (depthLeft === 0) {
-      // Ending on a phase-2 move would just be a shorter phase 1 plus that move.
+    if (spent + h > threshold || spent + h >= bestCost) return
+    if (h === 0 && spent === threshold) {
+      // Ending on a phase-2 move would just be a cheaper phase 1 plus that move.
       if (last >= 0 && isPhase2Move(last)) return
-      finishWithPhase2(cost)
+      finishWithPhase2(spent)
       return
     }
     for (let m = 0; m < N_MOVES; m++) {
@@ -418,9 +431,8 @@ function searchOnce(scramble: string, { timeMs, bound }: SearchOptions): string 
         t.twistMove[tw * N_MOVES + m],
         t.flipMove[fl * N_MOVES + m],
         t.sliceMove[sl * N_MOVES + m],
-        depthLeft - 1,
+        spent + quarterCost(m),
         m,
-        cost + quarterCost(m),
       )
       path.pop()
     }
@@ -429,9 +441,9 @@ function searchOnce(scramble: string, { timeMs, bound }: SearchOptions): string 
   const tw0 = twistOf(start.co)
   const fl0 = flipOf(start.eo)
   const sl0 = slicePositionOf(start.ep)
-  for (let depth = 0; depth <= 12 && depth < bestCost && !timeUp; depth++) {
+  for (threshold = 0; threshold <= 26 && threshold < bestCost && !timeUp; threshold++) {
     path.length = 0
-    phase1(tw0, fl0, sl0, depth, -1, 0)
+    phase1(tw0, fl0, sl0, 0, -1)
   }
 
   const solution = best as number[] | null
@@ -468,7 +480,7 @@ const quarterTurnsOf = (alg: string) => (alg.match(/[URFDLB](?:2'?|')?/g) ?? [])
  */
 export function solveTwoPhase(scramble: string, options: SolveOptions = {}): string {
   initTwoPhase()
-  const perView = (options.timeMs ?? 800) / 6
+  const perView = (options.timeMs ?? 1500) / 6
   let best: string | null = null
   let bestCost = Infinity
 

@@ -45,6 +45,34 @@ function PoseIcon({ layer, hand = 'Right', size = 22 }: { layer: SignLayer; hand
   )
 }
 
+/**
+ * The hand signs for a run of moves, one chip each: which hand (by colour and
+ * by the finger bars as that hand looks from the back) and which fingers.
+ * A half turn is two quarter turns, so it shows two chips.
+ */
+export function SignSequence({ moves }: { moves: string }) {
+  const notations = (moves.match(/[URFDLBMES]2?'?/g) ?? []).flatMap((m) => (m.includes('2') ? [m[0], m[0]] : [m]))
+  return (
+    <ol data-testid="sign-sequence" className="flex flex-wrap gap-1.5">
+      {notations.map((n, i) => {
+        const sign = signForNotation(n)
+        if (!sign) return null
+        return (
+          <li
+            key={i}
+            title={`${sign.hand} hand, ${poseWords(sign.layer)}`}
+            className="flex items-center gap-1 rounded-lg border bg-[#16171B] py-1 pl-1 pr-2"
+            style={{ borderColor: HAND_COLOR[sign.hand] + '66' }}
+          >
+            <PoseIcon layer={sign.layer} hand={sign.hand} size={24} />
+            <span className="font-mono text-sm text-[#ECEAE4]">{n}</span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
 const LAYERS: Array<{ layer: SignLayer; name: string }> = [
   { layer: 'R', name: 'Right' },
   { layer: 'U', name: 'Top' },
@@ -75,21 +103,21 @@ export function HandsKey({ onClose }: { onClose: () => void }) {
             Use both hands. The <b>fingers</b> pick the layer, the <b>hand</b> picks the direction:
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2 text-center">
-            <div className="rounded-md border py-1.5" style={{ borderColor: HAND_COLOR.Right + '66' }}>
-              <div style={{ color: HAND_COLOR.Right }}>Right hand</div>
-              <div>clockwise ↻</div>
-            </div>
             <div className="rounded-md border py-1.5" style={{ borderColor: HAND_COLOR.Left + '66' }}>
               <div style={{ color: HAND_COLOR.Left }}>Left hand</div>
               <div>counter-clockwise ↺</div>
+              <div className="rounded-md border py-1.5" style={{ borderColor: HAND_COLOR.Right + '66' }}>
+              <div style={{ color: HAND_COLOR.Right }}>Right hand</div>
+              <div>clockwise ↻</div>
             </div>
+          </div>
           </div>
           <p className="mt-2">Hold the sign still until the ring fills. Relax your hand, then sign again to repeat.</p>
           <ul className="mt-2 space-y-1" data-testid="signs-key">
             {LAYERS.map(({ layer, name }) => (
               <li key={layer} className="flex items-center gap-2 border-t border-white/5 pt-1">
-                <PoseIcon layer={layer} hand="Right" />
                 <PoseIcon layer={layer} hand="Left" />
+                <PoseIcon layer={layer} hand="Right" />
                 <span className="w-5 font-mono text-sm text-[#ECEAE4]">{layer}</span>
                 <span className="flex-1">{name}</span>
                 <span className="text-[10px] text-[#6E6C75]">{poseWords(layer)}</span>

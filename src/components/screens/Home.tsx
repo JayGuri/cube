@@ -61,7 +61,7 @@ const FACTS = [
   },
   {
     title: 'A solver of its own',
-    body: 'A two-phase Kociemba solver written for this project. It keeps searching for shorter answers and averages about 21 turns.',
+    body: 'A two-phase Kociemba solver written for this project. It keeps searching for shorter answers and averages about 25 steps.',
   },
   {
     title: 'Shape is the state',

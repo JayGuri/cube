@@ -381,15 +381,20 @@ The replacement follows the two-phase recipe above and then keeps going:
 2. **Move tables.** For each coordinate, a table that says what number you get
    after each of the 18 turns. The search never touches a 3D cube again; it just
    looks numbers up.
-3. **Pruning tables.** Breadth-first search outward from the goal over pairs of
-   coordinates records the exact number of moves still needed. Used as the
-   estimate `h` in IDA*, it never over-estimates, so cutting a branch whose
-   `h` exceeds the moves left can't lose a solution. Building all four tables
-   takes about a second, done once in a web worker.
-4. **Keep improving.** Phase 1 is searched to depth 0, 1, 2, ... and every
-   phase-1 ending is offered to phase 2 with the limit set by the best total so
-   far. Anything that isn't strictly shorter is cut, so the answer only ever gets
-   better until the time budget (0.8 s) runs out.
+3. **Pruning tables.** A search outward from the goal over pairs of
+   coordinates records the exact number of **steps** still needed, where a
+   quarter turn costs 1 and a half turn costs 2 (what the guide counts). Used
+   as the estimate `h` in IDA*, it never over-estimates, so cutting a branch
+   whose `h` exceeds what is left to spend can't lose a solution. Building all
+   four tables takes about a second, done once in a web worker.
+4. **Keep improving.** Both phases are searched by *cost*, not by number of
+   moves: phase 1 at threshold 0, 1, 2, ... steps, and every phase-1 ending is
+   handed to phase 2, which finds the cheapest way to finish within whatever
+   is left of the best total so far. Anything that isn't strictly cheaper is
+   cut, so the answer only ever gets better until the time budget (1.5 s) runs
+   out. Searching by cost instead of by move count was the big win: the same
+   search measured in plain move count averaged 31.4 steps in 0.8 s and needed
+   8 s to reach 28.4; by cost it averages 24.9 in 0.8 s.
 5. **Six points of view.** The same cube is solved six ways: relabelled by a
    3-fold turn about the URF corner (0, 1 or 2 times, so the cube is seen from
    three sides) and also as its **inverse**. If `S` solves the inverse of the
@@ -398,9 +403,8 @@ The replacement follows the two-phase recipe above and then keeps going:
    shorter answer. Each view only accepts solutions that beat the best so far.
 
 Cost is measured in **quarter turns** (`R2` counts as 2), because that is how
-many sign, key or drag actions a person makes. Measured on 20 random scrambles:
-the first answer averaged 23.1 face turns (34.4 quarter turns); after the search,
-21.3 and 30.6.
+many sign, key or drag actions a person makes. Measured on random scrambles:
+the very first answer averages 32.1 steps; after the search, about 24.9.
 
 Slice turns (M E S) and rotations (x y z) in a history are rewritten as face
 turns plus a whole-cube rotation (`M = R L' x'`, and so on). A rotation never

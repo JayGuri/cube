@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Lesson } from '../core/academy/lessons'
+import { HAND_COLOR } from '../core/gestures/signGestures'
+import { SignSequence } from './HandsGuide'
 
 // The teaching column beside the cube in an Academy lesson.
 
@@ -14,6 +16,8 @@ interface Props {
   guiding: boolean
   busy: boolean
   nextLessonId: string | null
+  /** The moves to show as hand signs: the lesson's algorithm, or this position's solution. */
+  signMoves: string
   onShowMe: () => void
   onNewPosition: () => void
 }
@@ -32,6 +36,7 @@ export function LessonPanel({
   guiding,
   busy,
   nextLessonId,
+  signMoves,
   onShowMe,
   onNewPosition,
 }: Props) {
@@ -62,6 +67,18 @@ export function LessonPanel({
             {lesson.algorithm.moves}
           </p>
           <p className="mt-1 text-sm text-[#9C9AA3]">{lesson.algorithm.hint}</p>
+        </div>
+      )}
+
+      {signMoves && (
+        <div className="mt-5" data-testid="lesson-signs">
+          <p className="text-sm text-[#9C9AA3]">
+            With your hands: <b style={{ color: HAND_COLOR.Right }}>right hand</b> turns clockwise,{' '}
+            <b style={{ color: HAND_COLOR.Left }}>left hand</b> counter-clockwise. Raise the lit fingers and hold.
+          </p>
+          <div className="mt-2">
+            <SignSequence moves={signMoves} />
+          </div>
         </div>
       )}
 

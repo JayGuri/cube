@@ -34,8 +34,12 @@ test('Show me walks through a lesson position and the lesson completes', async (
   await page.goto('/learn/corners')
   await expect(page.getByTestId('puzzle-canvas')).toHaveAttribute('data-ready', 'true')
   await expect(page.getByTestId('lesson-algorithm')).toHaveText("R U R' U'")
+  // The finger signs for the lesson are listed even in Mouse mode, in the two hand colours.
+  await expect(page.getByTestId('lesson-signs')).toBeVisible()
+  await expect(page.getByTestId('sign-sequence').locator('li')).toHaveCount(4)
   await page.getByTestId('show-me').click()
   await expect(page.getByTestId('guide-step')).toBeVisible()
+  await expect(page.getByTestId('guide-sign')).toContainText(/hand/)
   await followGuide(page)
   await expect(page.getByTestId('lesson-done')).toBeVisible({ timeout: 10_000 })
 
@@ -96,6 +100,9 @@ test('the solution can be paused, stepped and reversed', async ({ page }) => {
 
 test('Home: a sign held in the demo turns a layer, and the left hand turns it the other way', async ({ page }) => {
   await page.goto('/')
+  // Left hand sits on the left, right hand on the right.
+  const hands = await page.locator('[data-testid^="sign-hand-"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')))
+  expect(hands).toEqual(['sign-hand-left', 'sign-hand-right'])
   await page.getByTestId('sign-R').click()
   await expect(page.getByTestId('sign-readout')).toContainText("R")
   await expect(page.getByTestId('sign-turns')).toHaveText('1 turn made.', { timeout: 5_000 })
