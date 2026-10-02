@@ -50,11 +50,11 @@ const LAYERS: Array<{ layer: SignLayer; name: string }> = [
 export function HandsKey({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="absolute left-4 top-4 max-h-[calc(100%-2rem)] w-72 overflow-y-auto rounded-lg border border-white/10 bg-[#16171B]/90 p-3 text-xs text-[#9C9AA3] shadow-lg backdrop-blur"
+      className="absolute left-4 top-4 max-h-[calc(100%-2rem)] w-72 overflow-y-auto rounded-xl border border-white/10 bg-[#202227]/95 p-4 text-xs text-[#9C9AA3] shadow-lg"
       data-testid="hands-help"
     >
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#ECEAE4]">Hand signs</span>
+        <h2 className="font-display text-base font-bold text-[#ECEAE4]">Hand signs</h2>
         <button type="button" onClick={onClose} aria-label="Hide hand-control instructions" className="hover:text-[#ECEAE4]">
           ×
         </button>
@@ -128,7 +128,7 @@ export function SignsHud({ signs }: { signs: ActiveSign[] }) {
         >
           <Ring progress={s.progress} />
           <span className="font-mono text-xl font-semibold text-[#ECEAE4]">{s.notation}</span>
-          <span className="text-[10px] uppercase tracking-wide text-[#9C9AA3]">{s.hand} hand</span>
+          <span className="text-xs text-[#9C9AA3]">{s.hand} hand</span>
         </div>
       ))}
     </div>
@@ -152,10 +152,10 @@ export function GuidePanel({
   return (
     <div
       data-testid="guide-panel"
-      className="absolute bottom-4 right-4 w-72 rounded-lg border border-[#F5B83D]/40 bg-[#16171B]/92 p-3 text-xs text-[#9C9AA3] shadow-lg backdrop-blur"
+      className="absolute bottom-4 right-4 w-72 rounded-xl border border-[#F5B83D]/40 bg-[#202227]/95 p-4 text-xs text-[#9C9AA3] shadow-lg backdrop-blur"
     >
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#F5B83D]">Guided solve</span>
+        <h2 className="font-display text-base font-bold text-[#F5B83D]">Guided solve</h2>
         <button type="button" onClick={onStop} className="hover:text-[#ECEAE4]" data-testid="guide-stop">
           {status === 'done' ? 'Close' : 'Stop'}
         </button>

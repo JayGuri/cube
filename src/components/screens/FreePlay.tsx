@@ -418,7 +418,7 @@ export function FreePlay() {
             {showMouseTips && <MouseTips onClose={dismissTips} />}
 
             {inputMode === 'hands' && (
-              <div className="absolute right-4 top-4 w-52 overflow-hidden rounded-xl border border-white/10 bg-[#202227] shadow-lg">
+              <div className="absolute right-4 top-4 w-64 overflow-hidden rounded-xl border border-white/10 bg-[#202227] shadow-lg">
                 <div className="relative aspect-video bg-black">
                   {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                   <video
@@ -428,11 +428,11 @@ export function FreePlay() {
                     muted
                     data-testid="gesture-video"
                   />
-                  <CameraDebugOverlay frame={gestures.frame} width={208} height={117} />
+                  <CameraDebugOverlay frame={gestures.frame} width={256} height={144} />
                 </div>
                 <div className="flex items-center justify-between px-2.5 py-1.5">
                   <GestureConfidenceIndicator frame={gestures.frame} />
-                  <span className="text-xs text-[#9C9AA3]" data-testid="gesture-state">
+                  <span className="shrink-0 text-xs text-[#9C9AA3]" data-testid="gesture-state">
                     {heldSigns.length ? heldSigns.map((h) => h.notation).join(' + ') : 'Show a sign'}
                   </span>
                 </div>
