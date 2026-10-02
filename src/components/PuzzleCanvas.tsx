@@ -1,4 +1,4 @@
-import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
+import { OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
@@ -34,6 +34,21 @@ const dim = (hex: string) => `#${new THREE.Color(hex).lerp(DIM_TOWARD, 0.3).getH
 
 // Fine light/dark streaks, multiplied over the Mirror Cube's blue, read as
 // brushed metal. Drawn once on a canvas and shared by every tile.
+// Every Mirror piece shares these three materials instead of making its own.
+let sharedMirror: { body: THREE.Material; tile: THREE.Material; dim: THREE.Material } | null = null
+function mirrorMaterials() {
+  if (!sharedMirror) {
+    const tile = (color: string) =>
+      new THREE.MeshStandardMaterial({ color, map: brushedTexture(), metalness: 0.6, roughness: 0.38 })
+    sharedMirror = {
+      body: new THREE.MeshStandardMaterial({ color: PLASTIC, roughness: 0.85 }),
+      tile: tile('#6A98F0'),
+      dim: tile('#4E72BC'),
+    }
+  }
+  return sharedMirror
+}
+
 let brushed: THREE.CanvasTexture | null = null
 function brushedTexture(): THREE.CanvasTexture {
   if (brushed) return brushed
@@ -136,7 +151,7 @@ function Pieces({
 }: PiecesProps) {
   const { camera } = useThree()
   // Material group order is derived from the plugin's own colorScheme keys,
-  // not a hardcoded cube3 face list -- assignFaceGroups() (per-puzzle
+  // not a hardcoded cube3 face list -- the geometry builder (per-puzzle
   // geometry.ts) always numbers groups 0..N-1 in this same key order, with N
   // the trailing interior/plastic group, so this works unchanged for any
   // puzzle's face count.
@@ -361,19 +376,12 @@ function Pieces({
               }}
             >
               <group position={box.center} onPointerDown={(e) => handleDown(e, pose.slot, pose.base)}>
-                <mesh>
+                <mesh material={mirrorMaterials().body}>
                   <boxGeometry args={[sx - 0.1, sy - 0.1, sz - 0.1]} />
-                  <meshStandardMaterial color={PLASTIC} roughness={0.85} />
                 </mesh>
                 {tiles.map((t, i) => (
-                  <mesh key={i}>
+                  <mesh key={i} material={isDimmed ? mirrorMaterials().dim : mirrorMaterials().tile}>
                     <boxGeometry args={t} />
-                    <meshStandardMaterial
-                      color={isDimmed ? '#4E72BC' : '#6A98F0'}
-                      map={brushedTexture()}
-                      metalness={0.6}
-                      roughness={0.38}
-                    />
                   </mesh>
                 ))}
               </group>
@@ -462,7 +470,7 @@ export interface PuzzleCanvasProps {
   guideMove?: string | null
 }
 
-export function PuzzleCanvas({
+function PuzzleCanvasInner({
   plugin,
   state,
   onMove,
@@ -557,21 +565,12 @@ export function PuzzleCanvas({
         dpr={[1, 2]}
         onCreated={() => setReady(true)}
       >
+        <FitToScreen />
         <color attach="background" args={['#16171B']} />
         <ambientLight intensity={0.85} />
         <directionalLight position={[6, 8, 5]} intensity={1.1} />
         <directionalLight position={[-6, -4, -5]} intensity={0.35} />
-        {plugin.id === 'mirror' && (
-          // Polished metal is only silver when it has something to reflect.
-          // A few glowing panels make a soft studio around the cube -- built
-          // in-scene, so nothing is downloaded and it works offline.
-          <Environment resolution={128}>
-            <Lightformer intensity={2.2} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[12, 12, 1]} />
-            <Lightformer intensity={1.2} position={[7, 1, 3]} rotation-y={-Math.PI / 2} scale={[8, 4, 1]} />
-            <Lightformer intensity={0.9} position={[-7, 0, -2]} rotation-y={Math.PI / 2} scale={[8, 4, 1]} />
-            <Lightformer intensity={0.6} position={[0, 0, 8]} scale={[10, 3, 1]} />
-          </Environment>
-        )}
+        {plugin.id === 'mirror' && <StudioEnvironment />}
         <group scale={scale}>
           <Pieces
             plugin={plugin}
@@ -608,4 +607,82 @@ export function PuzzleCanvas({
       </Canvas>
     </div>
   )
+}
+
+// On a tall, narrow screen the cube would overflow the sides, so zoom out in
+// proportion to how narrow the canvas is.
+function FitToScreen() {
+  const { camera, size } = useThree()
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera
+    Object.assign(cam, { zoom: Math.min(1, Math.max(0.55, (size.width / size.height) * 1.05)) })
+    cam.updateProjectionMatrix()
+  }, [camera, size])
+  return null
+}
+
+let webgl: boolean | null = null
+function webglAvailable(): boolean {
+  if (webgl === null) {
+    try {
+      const probe = document.createElement('canvas')
+      webgl = Boolean(probe.getContext('webgl2') || probe.getContext('webgl'))
+    } catch {
+      webgl = false
+    }
+  }
+  return webgl
+}
+
+export function PuzzleCanvas(props: PuzzleCanvasProps) {
+  if (webglAvailable()) return <PuzzleCanvasInner {...props} />
+  return (
+    <div className={`${props.className ?? ''} grid place-items-center p-8 text-center`} data-testid="no-webgl">
+      <div className="max-w-sm">
+        <p className="font-display text-2xl font-bold">3D graphics are not available</p>
+        <p className="mt-3 text-[#9C9AA3]">
+          Your browser could not start WebGL, which draws the cube. Turn on hardware acceleration in your browser settings, or
+          try a recent version of Chrome, Edge, Firefox or Safari.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// Polished metal is only silver when it has something to reflect. This paints a
+// tiny studio -- a light-to-dark backdrop with a few bright panels -- onto a
+// canvas and bakes it into an environment map once. (drei's <Environment> with
+// light panels did the same job but blocked the page for seconds.)
+function StudioEnvironment() {
+  const { gl, scene } = useThree()
+  useEffect(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 128
+    const g = canvas.getContext('2d')!
+    const backdrop = g.createLinearGradient(0, 0, 0, 128)
+    backdrop.addColorStop(0, '#dfe5f3')
+    backdrop.addColorStop(0.5, '#6a7186')
+    backdrop.addColorStop(1, '#1c1e28')
+    g.fillStyle = backdrop
+    g.fillRect(0, 0, 256, 128)
+    g.fillStyle = '#ffffff'
+    g.fillRect(20, 14, 70, 26)
+    g.fillRect(150, 10, 80, 20)
+    g.fillStyle = '#e8eeff'
+    g.fillRect(100, 52, 56, 12)
+    const source = new THREE.CanvasTexture(canvas)
+    source.mapping = THREE.EquirectangularReflectionMapping
+    source.colorSpace = THREE.SRGBColorSpace
+    const pmrem = new THREE.PMREMGenerator(gl)
+    const env = pmrem.fromEquirectangular(source).texture
+    Object.assign(scene, { environment: env })
+    source.dispose()
+    pmrem.dispose()
+    return () => {
+      Object.assign(scene, { environment: null })
+      env.dispose()
+    }
+  }, [gl, scene])
+  return null
 }

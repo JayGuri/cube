@@ -490,6 +490,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     <main className="flex h-dvh flex-col overflow-hidden bg-[#16171B] text-[#ECEAE4]">
       <header className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] px-4 py-3 sm:px-6">
         <Logo size={24} />
+        <div className="flex min-w-0 items-center gap-3 max-sm:sr-only">
         <span className="text-white/20" aria-hidden>
           /
         </span>
@@ -506,6 +507,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
         ) : (
           <h1 className="text-sm text-[#9C9AA3]">{plugin?.displayName ?? puzzleId}</h1>
         )}
+        </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <div role="group" aria-label="Control with" className="flex rounded-full bg-[#202227] p-1 text-sm">
@@ -534,7 +536,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
             aria-pressed={cameraLocked}
             onClick={toggleCameraLock}
             title="Freeze the view so the cube stays put (Space, or hold a fist)"
-            className={`rounded-full border px-3.5 py-1.5 text-sm transition ${
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm transition ${
               cameraLocked
                 ? 'border-[#F5B83D] bg-[#F5B83D]/15 text-[#F5B83D]'
                 : 'border-white/10 text-[#9C9AA3] hover:border-white/25 hover:text-[#ECEAE4]'
@@ -757,7 +759,7 @@ function MouseTips({ onClose, mirror }: { onClose: () => void; mirror: boolean }
   return (
     <div
       data-testid="mouse-tips"
-      className="absolute left-4 top-4 w-72 rounded-xl border border-white/10 bg-[#202227]/95 p-4 text-sm text-[#9C9AA3] shadow-lg"
+      className="absolute left-4 top-4 w-[calc(100%-2rem)] rounded-xl border border-white/10 bg-[#202227]/95 p-4 text-sm text-[#9C9AA3] shadow-lg sm:w-72"
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <h2 className="font-display text-base font-bold text-[#ECEAE4]">How to turn the cube</h2>
@@ -778,15 +780,15 @@ function MouseTips({ onClose, mirror }: { onClose: () => void; mirror: boolean }
         <li>
           <b className="text-[#ECEAE4]">Drag empty space</b> or right-drag to look around; scroll to zoom.
         </li>
-        <li>
+        <li className="max-sm:hidden">
           Or press <Kbd>R</Kbd> <Kbd>U</Kbd> <Kbd>F</Kbd> <Kbd>L</Kbd> <Kbd>D</Kbd> <Kbd>B</Kbd>, with <Kbd>Shift</Kbd> to
           turn the other way.
         </li>
-        <li>
+        <li className="max-sm:hidden">
           <Kbd>Space</Kbd> locks the view.
         </li>
       </ul>
-      <p className="mt-3 border-t border-white/10 pt-3">
+      <p className="mt-3 border-t border-white/10 pt-3 max-sm:hidden">
         Press <b className="text-[#ECEAE4]">Scramble</b> and solve it yourself. Stuck?{' '}
         <b className="text-[#F5B83D]">Guide me</b> shows the next move.
       </p>

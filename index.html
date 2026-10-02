@@ -5,6 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#16171B" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="preload" href="/fonts/bricolage-grotesque-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/atkinson-hyperlegible-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/atkinson-hyperlegible-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
     <meta name="description" content="Cubit is a Rubik's Cube you control with your hands. Your webcam reads finger signs, nothing leaves your device." />
     <title>Cubit: solve the cube with your hands</title>
     <meta property="og:type" content="website" />
@@ -19,6 +23,7 @@
   </head>
   <body>
     <div id="root"></div>
+    <noscript>Cubit needs JavaScript to draw the cube and read your hands. Please turn it on.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

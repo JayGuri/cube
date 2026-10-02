@@ -35,7 +35,7 @@ describe('cube3 geometry', () => {
     expect(stickerGroups.length).toBe(3)
   })
 
-  it('caches: two calls return the identical object (CSG runs once)', () => {
+  it('caches: two calls return the identical object (built once)', () => {
     expect(buildCube3Geometry()).toBe(buildCube3Geometry())
   })
 })

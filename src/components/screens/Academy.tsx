@@ -23,10 +23,10 @@ export function Academy() {
         </nav>
 
         <header className="mt-14">
-          <h1 className="font-display text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-6xl">
+          <h1 className="font-display min-h-[3.2rem] text-5xl font-extrabold leading-[1.02] tracking-tight sm:min-h-[3.8rem] sm:text-6xl">
             Learn to solve it.
           </h1>
-          <p className="mt-5 max-w-lg text-lg text-[#9C9AA3]">
+          <p className="mt-5 min-h-[4.5rem] max-w-lg text-lg text-[#9C9AA3] sm:min-h-[3.5rem]">
             Eight short lessons, one layer at a time. Each one has practice positions, and a button that shows you the
             moves on the cube.
           </p>

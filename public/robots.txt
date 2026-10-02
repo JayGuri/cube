@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://cube-smoky-iota.vercel.app/sitemap.xml

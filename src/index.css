@@ -1,12 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap');
 @import "tailwindcss";
+
+/* The two typefaces, served from /fonts and preloaded in index.html so they
+   arrive with the page and nothing shifts when they appear. */
+@font-face {
+  font-family: 'Bricolage Grotesque Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url('/fonts/bricolage-grotesque-latin-opsz-normal.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fonts/atkinson-hyperlegible-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('/fonts/atkinson-hyperlegible-latin-700-normal.woff2') format('woff2');
+}
 
 @theme {
   /* Atkinson Hyperlegible was designed for readability -- the instructions
      are the product here. Bricolage Grotesque gives headings a chunky,
-     toy-like character. Both fall back to system fonts offline. */
+     toy-like character. Both are bundled with the app (no font servers). */
   --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, sans-serif;
-  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
 }
 
 html {

@@ -14,7 +14,7 @@ const FACE_PATTERN = [2, 0, 5, 1, 3, 0, 5, 2, 4]
 
 function StickerGrid() {
   return (
-    <div className="grid w-52 grid-cols-3 gap-2 rounded-[1.6rem] bg-[#10131A] p-3 shadow-2xl" aria-hidden>
+    <div className="grid w-36 grid-cols-3 gap-1.5 rounded-[1.4rem] bg-[#10131A] p-2.5 shadow-2xl sm:w-52 sm:gap-2 sm:rounded-[1.6rem] sm:p-3" aria-hidden>
       {FACE_PATTERN.map((c, i) => (
         <span key={i} className="aspect-square rounded-lg" style={{ background: STICKERS[c] }} />
       ))}
@@ -26,7 +26,7 @@ function StickerGrid() {
 function MirrorBlocks() {
   return (
     <div
-      className="grid w-56 gap-3 rounded-[1.8rem] bg-[#10131A] p-3.5 shadow-2xl"
+      className="grid w-36 gap-2 rounded-[1.4rem] bg-[#10131A] p-2.5 shadow-2xl sm:w-56 sm:gap-3 sm:rounded-[1.8rem] sm:p-3.5"
       style={{ gridTemplateColumns: '1.4fr 1fr 0.6fr', gridTemplateRows: '1.25fr 1fr 0.75fr', aspectRatio: '1' }}
       aria-hidden
     >
@@ -52,7 +52,7 @@ function LessonDots() {
 }
 
 const TILE =
-  'group relative isolate flex min-h-[15rem] flex-col justify-between overflow-hidden rounded-[2rem] p-7 text-[#10131A] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8)]'
+  'group relative isolate flex min-h-[17rem] flex-col md:min-h-[15rem] justify-between overflow-hidden rounded-[2rem] p-7 text-[#10131A] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_-24px_rgba(0,0,0,0.8)]'
 
 const FACTS = [
   {
@@ -125,9 +125,11 @@ export function Home() {
               </Link>
             </div>
           </div>
-          <div className="relative grid h-[26rem] place-items-center">
+          <div className="relative grid h-[20rem] place-items-center sm:h-[26rem]">
             <div aria-hidden className="absolute bottom-10 h-9 w-64 rounded-[50%] bg-black/60 blur-xl" />
-            <CssCube cubie={88} autoplay tumble followPointer />
+            <div className="origin-center scale-[0.72] sm:scale-100">
+              <CssCube cubie={88} autoplay tumble followPointer />
+            </div>
           </div>
         </section>
 
@@ -152,23 +154,23 @@ export function Home() {
             <Link to="/play/cube3" data-testid="play-cube3" className={`${TILE} bg-[#2FB36B] md:col-span-2`}>
               <div>
                 <h3 className="font-display text-4xl font-extrabold tracking-tight">3×3 Cube</h3>
-                <p className="mt-2 max-w-xs text-lg font-medium text-[#10131A]/80">The classic. Make every face one colour.</p>
+                <p className="mt-2 max-w-xs text-lg font-medium text-[#10131A]/90">The classic. Make every face one colour.</p>
               </div>
               <span className="mt-6 w-fit rounded-full bg-[#10131A] px-5 py-2 text-sm font-semibold text-[#ECEAE4]">Play</span>
-              <div className="absolute -bottom-10 right-8 rotate-[8deg] transition duration-500 group-hover:-translate-y-3 group-hover:rotate-[2deg]">
+              <div className="absolute -bottom-8 right-4 rotate-[8deg] sm:-bottom-10 sm:right-8 transition duration-500 group-hover:-translate-y-3 group-hover:rotate-[2deg]">
                 <StickerGrid />
               </div>
             </Link>
 
-            <Link to="/play/mirror" data-testid="play-mirror" className={`${TILE} bg-[#3C6FE0] md:row-span-2`}>
+            <Link to="/play/mirror" data-testid="play-mirror" className={`${TILE} bg-[#5B8DEF] md:row-span-2`}>
               <div>
                 <h3 className="font-display text-4xl font-extrabold tracking-tight">Mirror Cube</h3>
-                <p className="mt-2 max-w-[15rem] text-lg font-medium text-[#10131A]/80">
+                <p className="mt-2 max-w-[15rem] text-lg font-medium text-[#10131A]/90">
                   One colour, uneven blocks. You solve it by shape.
                 </p>
               </div>
               <span className="mt-6 w-fit rounded-full bg-[#10131A] px-5 py-2 text-sm font-semibold text-[#ECEAE4]">Play</span>
-              <div className="absolute -bottom-16 -right-12 -rotate-[8deg] transition duration-500 group-hover:-translate-y-3 group-hover:-rotate-[3deg]">
+              <div className="absolute -bottom-10 -right-8 -rotate-[8deg] sm:-bottom-16 sm:-right-12 transition duration-500 group-hover:-translate-y-3 group-hover:-rotate-[3deg]">
                 <MirrorBlocks />
               </div>
             </Link>
@@ -176,7 +178,7 @@ export function Home() {
             <Link to="/learn" data-testid="learn-academy" className={`${TILE} bg-[#FF8A00] md:col-span-2`}>
               <div>
                 <h3 className="font-display text-4xl font-extrabold tracking-tight">Academy</h3>
-                <p className="mt-2 max-w-xs text-lg font-medium text-[#10131A]/80">
+                <p className="mt-2 max-w-xs text-lg font-medium text-[#10131A]/90">
                   Learn the layer-by-layer method in eight short lessons.
                 </p>
               </div>
