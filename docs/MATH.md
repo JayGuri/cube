@@ -389,22 +389,35 @@ The replacement follows the two-phase recipe above and then keeps going:
    four tables takes about a second, done once in a web worker.
 4. **Keep improving.** Both phases are searched by *cost*, not by number of
    moves: phase 1 at threshold 0, 1, 2, ... steps, and every phase-1 ending is
-   handed to phase 2, which finds the cheapest way to finish within whatever
-   is left of the best total so far. Anything that isn't strictly cheaper is
-   cut, so the answer only ever gets better until the time budget (1.5 s) runs
-   out. Searching by cost instead of by move count was the big win: the same
-   search measured in plain move count averaged 31.4 steps in 0.8 s and needed
-   8 s to reach 28.4; by cost it averages 24.9 in 0.8 s.
-5. **Six points of view.** The same cube is solved six ways: relabelled by a
-   3-fold turn about the URF corner (0, 1 or 2 times, so the cube is seen from
-   three sides) and also as its **inverse**. If `S` solves the inverse of the
-   scramble, then `S'` solves the scramble, by `(A B)' = B' A'` from section 3.
-   The search wanders differently through each, so each is a fresh chance at a
-   shorter answer. Each view only accepts solutions that beat the best so far.
+   handed to phase 2, bounded by the best total so far. Anything that isn't
+   strictly cheaper is cut, so the answer only ever gets better until the time
+   budget runs out. A third phase-1 table, corner twist x edge flip (4.5 million
+   entries), tightens the estimate and cuts the search by about 40%.
+5. **Six points of view, side by side.** The same cube is solved six ways:
+   relabelled by a 3-fold turn about the URF corner (0, 1 or 2 times, so the
+   cube is seen from three sides) and also as its **inverse**. If `S` solves the
+   inverse of the scramble, then `S'` solves the scramble, by
+   `(A B)' = B' A'` from section 3. The six searches advance together, one cost
+   level at a time, so the cheap levels of every view are tried before the
+   expensive levels of any.
+6. **Proving optimality.** Two-phase answers are short, not always shortest. A
+   second search is plain IDA* over the whole cube. Its estimate is the largest
+   of several exact partial answers: the three phase-1 tables, the corner
+   permutation (40,320 states), the places of six edges (1.7 million), and the
+   places of the four slice edges. Each is exact for part of the cube, so the
+   largest never over-estimates. IDA* tries cost 0, 1, 2, ... in order, so the
+   first solution it finds is the cheapest that exists. Either it finds
+   something cheaper than the two-phase answer, or it exhausts every cheaper
+   cost, which **proves** that answer optimal. When all the estimates are 0 the
+   cube must be solved: every corner and ten edges are placed, and the last two
+   edges cannot be swapped alone without breaking the parity the corners fix.
+   The proof is instant up to about 8 steps from solved, usually under a second
+   at 10 to 12, and out of reach for a full scramble (hours), so it is used
+   where it works: lightly scrambled cubes and the end of every guided solve.
 
 Cost is measured in **quarter turns** (`R2` counts as 2), because that is how
 many sign, key or drag actions a person makes. Measured on random scrambles:
-the very first answer averages 32.1 steps; after the search, about 24.9.
+the very first answer averages about 32 steps; after three seconds of search, about 24.4. No position needs more than 26 (the quarter-turn "God's number").
 
 Slice turns (M E S) and rotations (x y z) in a history are rewritten as face
 turns plus a whole-cube rotation (`M = R L' x'`, and so on). A rotation never
@@ -422,6 +435,17 @@ and gigabytes. Two-phase answers land within a couple of moves of optimal.
 **Honesty check:** the tests apply every solution to a cube in `cubing.js`, an
 independent implementation, and require it to be solved, for random scrambles,
 for the superflip, and for cubes made with slice turns and rotations.
+
+### Random scrambles
+
+A scramble is not a random string of moves, which would favour some cubes over
+others. It is a **random state**: pick a corner arrangement and an edge
+arrangement at random, make their parities agree, pick twists that sum to a
+multiple of 3 and flips that sum to a multiple of 2, and you have one of the
+43,252,003,274,489,856,000 reachable cubes with equal chance. The solver then
+solves that cube, and the solution played backwards is the scramble. The random
+numbers come from the browser's cryptographic generator, with the uneven tail
+rejected so every value is equally likely.
 
 **In the code:** `twoPhase.ts` (tables and search), `frame.ts` (slices and
 rotations), `kociembaCore.ts` (entry point), `kociemba.worker.ts` (runs it off

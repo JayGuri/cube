@@ -15,7 +15,7 @@
 type Face = 'U' | 'R' | 'F' | 'D' | 'L' | 'B'
 export type Frame = Record<Face, Face>
 
-export const IDENTITY_FRAME: Frame = { U: 'U', R: 'R', F: 'F', D: 'D', L: 'L', B: 'B' }
+const IDENTITY_FRAME: Frame = { U: 'U', R: 'R', F: 'F', D: 'D', L: 'L', B: 'B' }
 
 // For each rotation: after it, the face now labelled K is the one that was
 // labelled SOURCE[K] just before. (x turns like R: the front goes up; y turns
@@ -85,8 +85,4 @@ export function toFaceTurns(alg: string): { turns: string; frame: Frame } {
 export function fromOriginalFrame(solution: string, frame: Frame): string {
   const labelFor = Object.fromEntries((Object.keys(frame) as Face[]).map((k) => [frame[k], k])) as Frame
   return solution.replace(/[URFDLB]/g, (face) => labelFor[face as Face])
-}
-
-export function isIdentityFrame(frame: Frame): boolean {
-  return (Object.keys(frame) as Face[]).every((k) => frame[k] === k)
 }

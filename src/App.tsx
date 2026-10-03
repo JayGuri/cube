@@ -9,6 +9,12 @@ const FreePlay = lazy(() => import('./components/screens/FreePlay').then((m) => 
 const Academy = lazy(() => import('./components/screens/Academy').then((m) => ({ default: m.Academy })))
 const Settings = lazy(() => import('./components/screens/Settings').then((m) => ({ default: m.Settings })))
 
+// Keyed by puzzle so switching cubes starts a fresh session (counters, timer, best).
+function PlayRoute() {
+  const { puzzleId = 'cube3' } = useParams<{ puzzleId: string }>()
+  return <FreePlay key={puzzleId} />
+}
+
 function LessonRoute() {
   const { lessonId = '' } = useParams<{ lessonId: string }>()
   return lessonById(lessonId) ? <FreePlay key={lessonId} lessonId={lessonId} /> : <Navigate to="/learn" replace />
@@ -40,7 +46,7 @@ function App() {
         <Suspense fallback={<div className="min-h-dvh bg-[#16171B]" />}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/play/:puzzleId" element={<FreePlay />} />
+          <Route path="/play/:puzzleId" element={<PlayRoute />} />
           <Route path="/learn" element={<Academy />} />
           <Route path="/learn/:lessonId" element={<LessonRoute />} />
           <Route path="/settings" element={<Settings />} />

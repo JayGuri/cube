@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { parseCubeMove } from '../core/animation/parseCubeMove'
+import { pieceBox } from '../core/puzzles/mirror/dimensions'
 import { applyMoveToPieces, createPieces, currentSlot, type Mat3, type TrackedPiece, type Vec3 } from '../core/puzzles/mirror/pieces'
 
 // A real, turning cube made of 26 CSS-3D cubies -- no WebGL, so it costs
@@ -54,19 +55,22 @@ const mul = (a: Mat3, b: Mat3) =>
 
 // Cube space is y-up and CSS is y-down: flip y on both sides, write the matrix
 // column by column for matrix3d, then move the cubie out to its home.
-function cubieTransform(m: Mat3, home: Vec3, size: number): string {
+function cubieTransform(m: Mat3, at: Vec3, size: number): string {
   const f = [1, -1, 1]
   const c = (i: number, j: number) => f[i] * f[j] * m[i][j]
   return (
     `matrix3d(${c(0, 0)},${c(1, 0)},${c(2, 0)},0,${c(0, 1)},${c(1, 1)},${c(2, 1)},0,${c(0, 2)},${c(1, 2)},${c(2, 2)},0,0,0,0,1) ` +
-    `translate3d(${home[0] * size}px,${-home[1] * size}px,${home[2] * size}px)`
+    `translate3d(${at[0] * size}px,${-at[1] * size}px,${at[2] * size}px)`
   )
 }
 
 const invert = (m: string) => (m.endsWith("'") ? m[0] : m + "'")
+const between = (lo: number, hi: number) => lo + Math.random() * (hi - lo)
+// A different scramble every time, of a different length every time.
 const randomScramble = () => {
   const out: string[] = []
-  while (out.length < 14) {
+  const length = Math.round(between(10, 17))
+  while (out.length < length) {
     const f = FACES[Math.floor(Math.random() * 6)]
     if (out.length && out[out.length - 1][0] === f) continue
     out.push(Math.random() < 0.5 ? f : f + "'")
@@ -83,11 +87,18 @@ interface Props {
   tumble?: boolean
   /** Lean toward the pointer. */
   followPointer?: boolean
+  /** "mirror" draws the Mirror Cube: one colour, every block a different size. */
+  variant?: 'standard' | 'mirror'
   className?: string
   ref?: Ref<CssCubeHandle>
 }
 
-export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPointer = false, className = '', ref }: Props) {
+export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPointer = false, variant = 'standard', className = '', ref }: Props) {
+  const mirror = variant === 'mirror'
+  // Where each piece's centre sits when home: a grid cell, or its own block's centre.
+  const centres = useRef<Vec3[]>(HOMES.map((p) => (mirror ? pieceBox(p.home).center : p.home)))
+  // Each cube tumbles at its own pace and starts at its own point in the loop.
+  const [tumbleStyle] = useState(() => ({ animationDuration: `${between(19, 27).toFixed(1)}s`, animationDelay: `-${between(0, 20).toFixed(1)}s` }))
   const els = useRef<(HTMLDivElement | null)[]>([])
   const pieces = useRef<TrackedPiece[]>(createPieces())
   const queue = useRef<Promise<void>>(Promise.resolve())
@@ -101,7 +112,7 @@ export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPo
       if (!el) return
       let m = p.rotation
       if (turn && currentSlot(p)[turn.axis] === turn.layer) m = mul(axisRot(turn.axis, turn.angle), m)
-      el.style.transform = cubieTransform(m, p.home, cubie)
+      el.style.transform = cubieTransform(m, centres.current[i], cubie)
     })
   }
 
@@ -147,13 +158,15 @@ export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPo
     const wait = (ms: number) => new Promise<void>((r) => (timer = window.setTimeout(r, ms)))
     if (autoplay && !reduced) {
       void (async () => {
-        await wait(800)
+        // Random pauses and speeds, so two cubes on one page never move in step.
+        await wait(between(300, 2600))
         while (alive.current) {
           const scramble = randomScramble()
-          for (const m of scramble) if (alive.current) await animate(m, 280)
-          await wait(900)
-          for (const m of [...scramble].reverse()) if (alive.current) await animate(invert(m), 280)
-          await wait(2000)
+          const pace = between(230, 330)
+          for (const m of scramble) if (alive.current) await animate(m, pace)
+          await wait(between(700, 1800))
+          for (const m of [...scramble].reverse()) if (alive.current) await animate(invert(m), pace)
+          await wait(between(1400, 3200))
         }
       })()
     }
@@ -181,9 +194,34 @@ export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPo
       >
         <div
           className={`cc-cube ${tumble ? 'cc-tumble' : ''}`}
-          style={{ ['--hs' as string]: `${cubie / 2}px`, ['--c' as string]: `${cubie}px` }}
+          style={{ ['--hs' as string]: `${cubie / 2}px`, ['--c' as string]: `${cubie}px`, ...(tumble ? tumbleStyle : {}) }}
         >
-          {HOMES.map((p, i) => (
+          {mirror &&
+            HOMES.map((p, i) => {
+              // A block: six plates sized to this piece, centred on the piece.
+              const [w, h, d] = pieceBox(p.home).size.map((v) => v * cubie)
+              const plates = [
+                { w, h, t: `translateZ(${d / 2}px)` },
+                { w, h, t: `rotateY(180deg) translateZ(${d / 2}px)` },
+                { w: d, h, t: `rotateY(90deg) translateZ(${w / 2}px)` },
+                { w: d, h, t: `rotateY(-90deg) translateZ(${w / 2}px)` },
+                { w, h: d, t: `rotateX(90deg) translateZ(${h / 2}px)` },
+                { w, h: d, t: `rotateX(-90deg) translateZ(${h / 2}px)` },
+              ]
+              return (
+                <div key={i} className="cc-block" ref={(el) => void (els.current[i] = el)}>
+                  {plates.map((plate, j) => (
+                    <div
+                      key={j}
+                      className="cc-plate"
+                      style={{ width: plate.w, height: plate.h, left: -plate.w / 2, top: -plate.h / 2, transform: plate.t }}
+                    />
+                  ))}
+                </div>
+              )
+            })}
+          {!mirror &&
+            HOMES.map((p, i) => (
             <div key={i} data-dim="0" className="cc-cubie" ref={(el) => void (els.current[i] = el)}>
               {SIDES.map((s, j) => {
                 const outward = s.n.every((v, k) => v === 0 || v === p.home[k])
@@ -194,7 +232,7 @@ export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPo
                 )
               })}
             </div>
-          ))}
+            ))}
         </div>
       </div>
     </div>

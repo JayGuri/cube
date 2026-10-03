@@ -13,17 +13,19 @@ describe('solveFromHistory picks the shorter way back', () => {
 
   it('REGRESSION: a 3-move position is solved in 3 turns, not ~21', async () => {
     const history = ['R', 'U', 'F'].map(mv)
-    const solution = await solveFromHistory(history)
-    expect(solution.map((m) => m.alg.toString())).toEqual(["F'", "U'", "R'"])
+    const { moves, optimal } = await solveFromHistory(history)
+    expect(moves.map((m) => m.alg.toString())).toEqual(["F'", "U'", "R'"])
+    // Three quarter turns from solved: the optimal search proves nothing shorter exists.
+    expect(optimal).toBe(true)
   })
 
   it('cancelling moves are merged, so R then R-prime needs nothing', async () => {
-    expect(await solveFromHistory(['R', "R'", 'U', "U'"].map(mv))).toEqual([])
+    expect((await solveFromHistory(['R', "R'", 'U', "U'"].map(mv))).moves).toEqual([])
   })
 
   it('on a real scramble the result still solves the real cube, and is never longer than undoing', async () => {
     const scramble = "R U2 F' L D2 B R' U F2 D' L2 B' U R2 F D".split(' ')
-    const solution = await solveFromHistory(scramble.map(mv))
+    const { moves: solution } = await solveFromHistory(scramble.map(mv))
     let state = apply(scramble)
     for (const m of solution) state = applyMove(state, m)
     expect(isSolved(state)).toBe(true)

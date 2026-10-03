@@ -16,6 +16,8 @@ interface Props {
   speed: PlaybackSpeed
   /** Quarter turns: what a person actually has to do. */
   steps: number
+  /** Provably the shortest solution there is. */
+  optimal?: boolean
   onPlayPause: () => void
   onStep: (direction: 1 | -1) => void
   onSpeed: (speed: PlaybackSpeed) => void
@@ -24,7 +26,7 @@ interface Props {
 
 const ICON = 'grid h-9 w-9 place-items-center rounded-full text-[#ECEAE4] transition hover:bg-white/10 disabled:opacity-30'
 
-export function SolutionPlayer({ status, moves, index, playing, speed, steps, onPlayPause, onStep, onSpeed, onClose }: Props) {
+export function SolutionPlayer({ status, moves, index, playing, speed, steps, optimal = false, onPlayPause, onStep, onSpeed, onClose }: Props) {
   const [showMoves, setShowMoves] = useState(false)
   const finished = index >= moves.length && moves.length > 0
 
@@ -69,7 +71,9 @@ export function SolutionPlayer({ status, moves, index, playing, speed, steps, on
               <span className="text-[#ECEAE4]" data-testid="solution-progress">
                 {finished ? 'Solved' : `Move ${Math.min(index + 1, moves.length)} of ${moves.length}`}
               </span>
-              <span className="text-xs">{steps} steps · {showMoves ? 'hide' : 'show'} moves</span>
+              <span className="text-xs">
+                {steps} steps{optimal ? ', shortest possible' : ''} · {showMoves ? 'hide' : 'show'} moves
+              </span>
             </button>
 
             <div role="group" aria-label="Speed" className="ml-1 flex rounded-full bg-black/25 p-0.5 text-xs">

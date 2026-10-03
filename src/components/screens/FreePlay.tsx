@@ -26,6 +26,7 @@ import { createGuide, expandSteps, followMove, type GuideState } from '../../cor
 import { useHandGestures } from '../../core/gestures/useHandGestures'
 import type { Move, PuzzleId } from '../../core/puzzles/PuzzlePlugin'
 import { usePuzzleStore } from '../../state/puzzleStore'
+import { quarterTurns } from '../../core/solvers/kociemba'
 import { useAcademyStore } from '../../state/academyStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
@@ -193,6 +194,78 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     return drainQueue()
   }
 
+  // --- Counters ------------------------------------------------------------
+  // The scramble's own length is shown on its own. The move counter starts at
+  // 0 and counts only turns made after it (a half turn counts two, like the
+  // guide), and the timer runs from the first turn to the solve.
+  const [scrambleLength, setScrambleLength] = useState<number | null>(null)
+  const [moveCount, setMoveCount] = useState(0)
+  const [assisted, setAssisted] = useState(false)
+  const [timer, setTimer] = useState<{ start: number | null; end: number | null }>({ start: null, end: null })
+  const [clock, setClock] = useState(() => Date.now())
+  const [best, setBest] = useState<BestResult | null>(() => loadBest(puzzleId))
+  const [newBest, setNewBest] = useState(false)
+  // The keyboard and sign handlers are created once, so they read this ref.
+  const sessionRef = useRef({ scrambled: false, start: null as number | null, end: null as number | null, moves: 0, assisted: false })
+
+  const startSession = (scrambleMoves: number | null) => {
+    sessionRef.current = { scrambled: scrambleMoves !== null, start: null, end: null, moves: 0, assisted: false }
+    setScrambleLength(scrambleMoves)
+    setMoveCount(0)
+    setAssisted(false)
+    setTimer({ start: null, end: null })
+    setNewBest(false)
+  }
+
+  const countMove = (move: Move, byUser: boolean) => {
+    const session = sessionRef.current
+    if (session.end !== null) return // already solved; the result stands
+    session.moves += quarterTurns([move])
+    setMoveCount(session.moves)
+    if (!byUser) {
+      session.assisted = true
+      setAssisted(true)
+    }
+    if (session.scrambled && session.start === null) {
+      session.start = Date.now()
+      setTimer({ start: session.start, end: null })
+    }
+  }
+
+  const markAssisted = () => {
+    if (!sessionRef.current.scrambled) return
+    sessionRef.current.assisted = true
+    setAssisted(true)
+  }
+
+  // Called after turns land: stop the clock the moment a scrambled cube is solved.
+  const checkFinish = () => {
+    const session = sessionRef.current
+    if (!session.scrambled || session.start === null || session.end !== null) return
+    if (!usePuzzleStore.getState().isSolved()) return
+    session.end = Date.now()
+    setTimer({ start: session.start, end: session.end })
+    if (!session.assisted) {
+      const result = { timeMs: session.end - session.start, moves: session.moves }
+      const previous = loadBest(puzzleId)
+      const merged = {
+        timeMs: Math.min(result.timeMs, previous?.timeMs ?? Infinity),
+        moves: Math.min(result.moves, previous?.moves ?? Infinity),
+      }
+      setNewBest(!previous || result.timeMs < previous.timeMs || result.moves < previous.moves)
+      saveBest(puzzleId, merged)
+      setBest(merged)
+    }
+  }
+
+  const running = timer.start !== null && timer.end === null
+  useEffect(() => {
+    if (!running) return
+    const id = window.setInterval(() => setClock(Date.now()), 200)
+    return () => window.clearInterval(id)
+  }, [running])
+  const elapsed = timer.start === null ? 0 : Math.max(0, (timer.end ?? clock) - timer.start)
+
   // --- Solution playback ----------------------------------------------------
   // "Solve for me" finds a solution, then plays it back where it can be paused,
   // stepped through either way and sped up.
@@ -203,6 +276,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
   const solveActiveRef = useRef(false)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<PlaybackSpeed>(1)
+  const [solutionOptimal, setSolutionOptimal] = useState(false)
   const setSolutionBoth = (next: { moves: Move[]; index: number } | null) => {
     solutionRef.current = next
     setSolution(next)
@@ -230,7 +304,8 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
       // Count the move first, then play it: pausing at any instant leaves the
       // index and the cube in agreement.
       setSolutionBoth({ ...s, index: s.index + 1 })
-      void enqueueMoves([s.moves[s.index]])
+      countMove(s.moves[s.index], false)
+      void enqueueMoves([s.moves[s.index]]).then(checkFinish)
     })()
     return () => {
       alive = false
@@ -243,11 +318,14 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     if (!s || playing) return
     if (direction === 1 && s.index < s.moves.length) {
       setSolutionBoth({ ...s, index: s.index + 1 })
-      void enqueueMoves([s.moves[s.index]])
+      countMove(s.moves[s.index], false)
+      void enqueueMoves([s.moves[s.index]]).then(checkFinish)
     } else if (direction === -1 && s.index > 0) {
       const m = s.moves[s.index - 1]
+      const back = { alg: m.alg.invert(), snapAngleDeg: m.snapAngleDeg }
       setSolutionBoth({ ...s, index: s.index - 1 })
-      void enqueueMoves([{ alg: m.alg.invert(), snapAngleDeg: m.snapAngleDeg }])
+      countMove(back, false)
+      void enqueueMoves([back])
     }
   }
 
@@ -315,23 +393,69 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
   }
 
   // --- Guided solve ------------------------------------------------------
-  // Opt-in via "Guide me"; it shows one quarter turn at a time. Moves the user
-  // makes are checked against it: the expected move advances, anything else
-  // (or an Undo) re-solves from where the cube actually is, so the remaining
-  // steps are always the shortest Kociemba finds from the real position.
+  // Opt-in via "Guide me"; it shows one quarter turn at a time. A first route
+  // arrives within half a second, then a deeper search keeps looking for a
+  // shorter one in the background and switches to it only if the cube has not
+  // moved meanwhile. As the cube gets closer to solved that search can prove
+  // the route is the shortest there is, and the guide says so.
   const [guide, setGuide] = useState<GuideState | null>(null)
   const [guideStatus, setGuideStatus] = useState<'off' | 'solving' | 'following' | 'done'>('off')
+  const [guideOptimal, setGuideOptimal] = useState(false)
+  const [guideRefining, setGuideRefining] = useState(false)
   const guideRef = useRef<GuideState | null>(null)
+  const guideOptimalRef = useRef(false)
   const guideTokenRef = useRef(0)
+  const refineTokenRef = useRef(-1)
   const setGuideBoth = (g: GuideState | null) => {
     guideRef.current = g
     setGuide(g)
+  }
+  const setOptimalBoth = (optimal: boolean) => {
+    guideOptimalRef.current = optimal
+    setGuideOptimal(optimal)
   }
 
   const stopGuide = () => {
     guideTokenRef.current++
     setGuideBoth(null)
     setGuideStatus('off')
+    setOptimalBoth(false)
+    setGuideRefining(false)
+  }
+
+  // Look for a shorter route from wherever the cube is now. One search runs at
+  // a time; if the cube moves while it thinks, it looks again from there.
+  const refineGuide = async (token: number) => {
+    if (lesson || refineTokenRef.current === token) return
+    refineTokenRef.current = token
+    setGuideRefining(true)
+    try {
+      for (;;) {
+        await drainQueue()
+        const { plugin: p, state: now, moveHistory: history } = usePuzzleStore.getState()
+        if (!p || !now || token !== guideTokenRef.current || !guideRef.current) return
+        const asked = history.length
+        const better = await p.solve(now, history, 'thorough')
+        if (token !== guideTokenRef.current || !guideRef.current) return
+        if (usePuzzleStore.getState().moveHistory.length !== asked) {
+          if (guideOptimalRef.current) return
+          continue
+        }
+        const g = guideRef.current
+        const steps = expandSteps(better.moves)
+        const remaining = g.steps.length - g.index
+        if (steps.length < remaining) setGuideBoth({ steps, index: 0 })
+        if (steps.length <= remaining) setOptimalBoth(better.optimal)
+        return
+      }
+    } catch {
+      // Keep the route we have.
+    } finally {
+      if (refineTokenRef.current === token) {
+        refineTokenRef.current = -1
+        setGuideRefining(false)
+      }
+    }
   }
 
   const startGuide = async () => {
@@ -339,16 +463,20 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     if (!p) return
     const token = ++guideTokenRef.current
     setGuideStatus('solving')
+    setOptimalBoth(false)
+    markAssisted()
     // Wait for any queued turns to land so the solver sees the real position.
     await drainQueue()
     const { state: now, moveHistory: history } = usePuzzleStore.getState()
     if (!now) return
     try {
-      const moves = await p.solve(now, history)
+      const first = await p.solve(now, history, 'quick')
       if (token !== guideTokenRef.current) return // superseded by a newer move or stop
-      const g = createGuide(moves)
+      const g = createGuide(first.moves)
       setGuideBoth(g.steps.length ? g : null)
       setGuideStatus(g.steps.length ? 'following' : 'done')
+      setOptimalBoth(first.optimal)
+      if (g.steps.length && !first.optimal) void refineGuide(token)
     } catch (e) {
       if (token === guideTokenRef.current) {
         setQueueError((e as Error).message)
@@ -361,7 +489,11 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
   // (Scramble and Solve feed the queue directly: they aren't the user's.)
   const userMove = (move: Move) => {
     if (solveActiveRef.current) closeSolution()
-    void enqueueMoves([move]).then(checkLesson)
+    countMove(move, true)
+    void enqueueMoves([move]).then(() => {
+      checkLesson()
+      checkFinish()
+    })
     let g = guideRef.current
     if (!g) return
     for (const step of expandSteps([move])) {
@@ -373,7 +505,11 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
           setLessonNote('That was not the move shown. Press Undo to take it back, then Show me again.')
           return
         }
-        void startGuide()
+        // Instant recovery: undo the stray turn, then carry on with the rest of
+        // the route. The background search still looks for something shorter.
+        setGuideBoth({ steps: [invertStep(step), ...g.steps.slice(g.index)], index: 0 })
+        setOptimalBoth(false)
+        void refineGuide(guideTokenRef.current)
         return
       }
       g = r.guide
@@ -397,6 +533,8 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
       }
     }
     setGuideBoth(g)
+    // Closer to solved, the search may now be able to prove the route optimal.
+    if (!guideOptimalRef.current) void refineGuide(guideTokenRef.current)
   }
 
   const handleMove = (move: Move | null) => {
@@ -410,8 +548,10 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     setBusy(true)
     setQueueError(null)
     try {
+      moveQueueRef.current = []
       reset()
       const moves = await plugin.scramble()
+      startSession(moves.length)
       await enqueueMoves(moves)
     } catch (e) {
       setQueueError((e as Error).message)
@@ -425,14 +565,33 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
   const handleReset = () => {
     stopGuide()
     closeSolution()
+    // Drop turns still waiting to animate, or they would land on the reset cube.
+    moveQueueRef.current = []
     reset()
+    startSession(null)
   }
 
   const handleUndo = () => {
     closeSolution()
     setLessonNote(null)
+    const last = usePuzzleStore.getState().moveHistory.at(-1)
     undo()
-    if (guideRef.current && !lesson) void startGuide()
+    if (last) {
+      countMove(last, true)
+      checkFinish()
+    }
+    const g = guideRef.current
+    if (!g || lesson || !last) return
+    const taken = last.alg.toString()
+    if (g.index > 0 && g.steps[g.index - 1] === taken) {
+      // Undid the step just taken: show it again.
+      setGuideBoth({ ...g, index: g.index - 1 })
+    } else if (g.steps[g.index] === invertStep(taken)) {
+      // Undid a stray turn, which was exactly the recovery step: move on.
+      setGuideBoth({ ...g, index: g.index + 1 })
+    } else {
+      void startGuide()
+    }
   }
 
   const handleSolve = async () => {
@@ -441,13 +600,15 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     closeSolution()
     const token = solveTokenRef.current
     solveActiveRef.current = true
+    markAssisted()
     setSolveStatus('solving')
     setQueueError(null)
     try {
       await drainQueue()
       const { state: now, moveHistory: history } = usePuzzleStore.getState()
-      const moves = await plugin.solve(now!, history)
+      const { moves, optimal } = await plugin.solve(now!, history, 'normal')
       if (token !== solveTokenRef.current) return // stopped or superseded while thinking
+      setSolutionOptimal(optimal)
       if (moves.length === 0) {
         closeSolution()
         return
@@ -474,7 +635,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
         setCameraLocked((v) => !v)
         return
       }
-      const move = moveFromKey({ key: e.key, shiftKey: e.shiftKey, altKey: e.altKey }, plugin.gestureProfile.snapAngleDeg)
+      const move = moveFromKey({ key: e.key, shiftKey: e.shiftKey, altKey: e.altKey }, plugin.snapAngleDeg)
       if (!move) return
       e.preventDefault()
       userMove(move)
@@ -653,7 +814,14 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
             {signsActive && heldSigns.length > 0 && <SignsHud signs={heldSigns} />}
 
             {guideStatus !== 'off' && (
-              <GuidePanel guide={guide} status={guideStatus} onStop={stopGuide} showHands={inputMode === 'hands' || Boolean(lesson)} />
+              <GuidePanel
+                guide={guide}
+                status={guideStatus}
+                onStop={stopGuide}
+                showHands={inputMode === 'hands' || Boolean(lesson)}
+                optimal={guideOptimal}
+                refining={guideRefining}
+              />
             )}
 
             {solveStatus !== 'off' && (
@@ -664,6 +832,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
                 playing={playing}
                 speed={speed}
                 steps={solution ? expandSteps(solution.moves).length : 0}
+                optimal={solutionOptimal && !lesson}
                 onPlayPause={() => setPlaying((v) => !v)}
                 onStep={stepSolution}
                 onSpeed={setSpeed}
@@ -708,7 +877,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
               Reset
             </button>
 
-            <div className="mx-auto flex items-center gap-3 text-sm">
+            <div className="mx-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
               <span
                 data-testid="solved-status"
                 className={`rounded-full px-3 py-1 font-semibold ${
@@ -717,9 +886,24 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
               >
                 {solved ? 'Solved' : 'Scrambled'}
               </span>
-              <span className="tabular-nums text-[#9C9AA3]" data-testid="move-count">
-                {moveHistory.length} moves
+              {scrambleLength !== null && (
+                <span className="text-[#9C9AA3]" data-testid="scramble-length" title="Turns used to scramble the cube">
+                  Scramble: {scrambleLength}
+                </span>
+              )}
+              <span className="tabular-nums text-[#ECEAE4]" data-testid="move-count" title="Turns since the scramble; a half turn counts two">
+                {moveCount} moves
               </span>
+              {timer.start !== null && (
+                <span className="tabular-nums text-[#ECEAE4]" data-testid="solve-timer">
+                  {formatTime(elapsed)}
+                </span>
+              )}
+              {timer.end !== null && (
+                <span data-testid="solve-summary" className={assisted ? 'text-[#9C9AA3]' : 'font-semibold text-[#FFD500]'}>
+                  {assisted ? 'with help' : newBest ? 'New best!' : best ? `Best ${formatTime(best.timeMs)}` : ''}
+                </span>
+              )}
             </div>
 
             {!solved && guideStatus === 'off' && (
@@ -798,4 +982,39 @@ function MouseTips({ onClose, mirror }: { onClose: () => void; mirror: boolean }
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return <kbd className="rounded-md bg-white/10 px-1.5 py-0.5 font-sans text-xs text-[#ECEAE4]">{children}</kbd>
+}
+
+/** "R" <-> "R'" (quarter turns only, as the guide shows them). */
+const invertStep = (step: string) => (step.endsWith("'") ? step.slice(0, -1) : `${step}'`)
+
+/** 75000 -> "1:15". */
+function formatTime(ms: number): string {
+  const total = Math.floor(ms / 1000)
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+// Best unassisted solve on this device, per puzzle.
+interface BestResult {
+  timeMs: number
+  moves: number
+}
+const BEST_KEY = 'palmtwist.best.v1'
+
+function loadBest(puzzleId: string): BestResult | null {
+  try {
+    const all = JSON.parse(localStorage.getItem(BEST_KEY) ?? '{}') as Record<string, BestResult>
+    const b = all[puzzleId]
+    return b && Number.isFinite(b.timeMs) && Number.isFinite(b.moves) ? b : null
+  } catch {
+    return null
+  }
+}
+
+function saveBest(puzzleId: string, best: BestResult): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(BEST_KEY) ?? '{}') as Record<string, BestResult>
+    localStorage.setItem(BEST_KEY, JSON.stringify({ ...all, [puzzleId]: best }))
+  } catch {
+    // Storage blocked: the best result just isn't remembered.
+  }
 }

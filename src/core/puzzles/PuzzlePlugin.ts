@@ -22,6 +22,8 @@
 import type { Alg } from 'cubing/alg'
 import type { BufferGeometry } from 'three'
 
+import type { Solution, SolveEffort } from '../solvers/kociemba'
+
 export type PuzzleId = 'cube3' | 'mirror'
 
 export interface Move {
@@ -52,32 +54,24 @@ export interface PuzzleMesh {
 // face/colour key -> hex
 export type FaceColorMap = Record<string, string>
 
-export interface GestureProfile {
-  snapAngleDeg: number
-  grabMode: 'instant' | 'hover-then-confirm'
-  twistAxisMode: 'screen-relative' | 'body-diagonal'
-}
-
 export interface PuzzlePlugin {
   id: PuzzleId
   displayName: string
-  // cubing definition id, e.g. "3x3x3".
-  kpuzzleDefinitionId: string
 
   createInitialState(): PuzzleState
   applyMove(state: PuzzleState, move: Move): PuzzleState
   isSolved(state: PuzzleState): boolean
+  /** A random-state scramble, never one of the recent ones. */
   scramble(): Promise<Move[]>
-  // Takes the history as well as the state: the Kociemba implementation we
-  // use solves from the scramble algorithm, not from a facelet dump (see the
-  // Task 2.1 spike notes in core/solvers/kociembaCore.ts).
-  solve(state: PuzzleState, history: Move[]): Promise<Move[]>
+  // Takes the history as well as the state: the solver works from the moves
+  // that made the cube (see core/solvers/kociembaCore.ts).
+  solve(state: PuzzleState, history: Move[], effort?: SolveEffort): Promise<Solution>
 
   buildGeometry(): PuzzleMesh
   colorScheme: FaceColorMap
-  pieceIdForFacelet(state: PuzzleState, facelet: string): PieceId
   // Per-piece sticker colours for the current state, keyed by pieceId then face.
   faceletColors(state: PuzzleState): Map<PieceId, Record<string, string>>
 
-  gestureProfile: GestureProfile
+  /** Degrees one turn snaps to. */
+  snapAngleDeg: number
 }

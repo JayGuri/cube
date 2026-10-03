@@ -10,7 +10,7 @@ import * as THREE from 'three'
 // the user live.)
 
 // How far the camera swings per unit of hand travel. Higher = faster orbit.
-export const ORBIT_SENSITIVITY = 6
+const ORBIT_SENSITIVITY = 6
 // Keeps the camera from flipping over the top or bottom of the cube.
 const MIN_POLAR = 0.15
 const MAX_POLAR = Math.PI - 0.15

@@ -1,13 +1,9 @@
 import { orbitsOf } from '../kpattern'
 import type { PieceId, PuzzleState } from '../PuzzlePlugin'
-import { CUBE3_COLORS, type Face, facesOfSlot, slotId } from './geometry'
+import { CUBE3_COLORS, type Face, slotId } from './geometry'
 import { patternOf } from './logic'
 
-// Two distinct id spaces, deliberately:
-//   * PieceMesh.pieceId  = SLOT id ("cube3-slot-1_1_1"). Stable mesh identity;
-//     a cubie mesh never moves between slots, its stickers are recoloured.
-//   * pieceIdForFacelet() = PHYSICAL PIECE id ("cube3-CORNERS-4"). Which actual
-//     piece currently occupies that slot. Lessons ask "is the right piece here".
+// Which cubie sits in which slot, and what colours it shows there.
 
 export interface SlotDef {
   orbit: 'CORNERS' | 'EDGES' | 'CENTERS'
@@ -22,7 +18,7 @@ export interface SlotDef {
 // assumed: applying R to the solved pattern changes exactly CORNERS indices
 // 0,1,4,7 and EDGES indices 1,5,8,10 -- precisely the R-face slots under these
 // orderings.
-export const CORNER_SLOTS: SlotDef[] = [
+const CORNER_SLOTS: SlotDef[] = [
   { orbit: 'CORNERS', index: 0, slot: [1, 1, 1], faces: ['U', 'F', 'R'] },
   { orbit: 'CORNERS', index: 1, slot: [1, 1, -1], faces: ['U', 'R', 'B'] },
   { orbit: 'CORNERS', index: 2, slot: [-1, 1, -1], faces: ['U', 'B', 'L'] },
@@ -33,7 +29,7 @@ export const CORNER_SLOTS: SlotDef[] = [
   { orbit: 'CORNERS', index: 7, slot: [1, -1, -1], faces: ['D', 'B', 'R'] },
 ]
 
-export const EDGE_SLOTS: SlotDef[] = [
+const EDGE_SLOTS: SlotDef[] = [
   { orbit: 'EDGES', index: 0, slot: [0, 1, 1], faces: ['U', 'F'] },
   { orbit: 'EDGES', index: 1, slot: [1, 1, 0], faces: ['U', 'R'] },
   { orbit: 'EDGES', index: 2, slot: [0, 1, -1], faces: ['U', 'B'] },
@@ -48,7 +44,7 @@ export const EDGE_SLOTS: SlotDef[] = [
   { orbit: 'EDGES', index: 11, slot: [-1, 0, -1], faces: ['B', 'L'] },
 ]
 
-export const CENTER_SLOTS: SlotDef[] = [
+const CENTER_SLOTS: SlotDef[] = [
   { orbit: 'CENTERS', index: 0, slot: [0, 1, 0], faces: ['U'] },
   { orbit: 'CENTERS', index: 1, slot: [-1, 0, 0], faces: ['L'] },
   { orbit: 'CENTERS', index: 2, slot: [0, 0, 1], faces: ['F'] },
@@ -65,25 +61,6 @@ const SOLVED_STICKERS: Record<string, string[][]> = {
   CORNERS: CORNER_SLOTS.map((s) => s.faces.map((f) => CUBE3_COLORS[f])),
   EDGES: EDGE_SLOTS.map((s) => s.faces.map((f) => CUBE3_COLORS[f])),
   CENTERS: CENTER_SLOTS.map((s) => s.faces.map((f) => CUBE3_COLORS[f])),
-}
-
-// Facelet label -> slot, tolerant of ordering ("URF" and "UFR" are the same slot).
-const normalise = (label: string) => label.toUpperCase().split('').sort().join('')
-const SLOT_BY_LABEL = new Map<string, SlotDef>(
-  ALL_SLOTS.map((s) => [normalise(s.faces.join('')), s]),
-)
-
-export function slotForFacelet(facelet: string): SlotDef {
-  const slot = SLOT_BY_LABEL.get(normalise(facelet))
-  if (!slot) throw new Error(`unknown cube3 facelet: ${facelet}`)
-  return slot
-}
-
-// Which physical piece currently sits at the slot this facelet names.
-export function pieceIdForFacelet(state: PuzzleState, facelet: string): PieceId {
-  const def = slotForFacelet(facelet)
-  const orbit = orbitsOf(patternOf(state))[def.orbit]
-  return `cube3-${def.orbit}-${orbit.pieces[def.index]}`
 }
 
 // Sticker colours for every cubie in the current state, keyed by mesh slot id.
@@ -110,19 +87,3 @@ export function faceletColors(state: PuzzleState): Map<PieceId, Record<string, s
   }
   return out
 }
-
-// "Which mesh piece is at which logical slot right now" -- a plain lookup,
-// deliberately free of Three.js scene-graph code. The r3f component applies the
-// actual position/rotation.
-export function syncMeshToState(
-  state: PuzzleState,
-  facelets: string[] = ALL_SLOTS.map((s) => s.faces.join('')),
-): Map<string, PieceId> {
-  const map = new Map<string, PieceId>()
-  for (const facelet of facelets) {
-    map.set(facelet, pieceIdForFacelet(state, facelet))
-  }
-  return map
-}
-
-export { facesOfSlot }

@@ -125,10 +125,19 @@ export function Home() {
               </Link>
             </div>
           </div>
-          <div className="relative grid h-[20rem] place-items-center sm:h-[26rem]">
-            <div aria-hidden className="absolute bottom-10 h-9 w-64 rounded-[50%] bg-black/60 blur-xl" />
-            <div className="origin-center scale-[0.72] sm:scale-100">
-              <CssCube cubie={88} autoplay tumble followPointer />
+          {/* Two cubes, each scrambling and solving on its own clock. */}
+          <div className="relative h-[21rem] sm:h-[28rem]">
+            <div aria-hidden className="absolute left-[36%] top-[78%] h-8 w-56 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl" />
+            <div aria-hidden className="absolute left-[80%] top-[94%] h-6 w-36 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl" />
+            <div className="absolute left-[36%] top-[40%]">
+              <div className="scale-[0.66] sm:scale-100">
+                <CssCube cubie={78} autoplay tumble followPointer />
+              </div>
+            </div>
+            <div className="absolute left-[80%] top-[72%]">
+              <div className="scale-[0.66] sm:scale-100">
+                <CssCube variant="mirror" cubie={44} autoplay tumble followPointer />
+              </div>
             </div>
           </div>
         </section>

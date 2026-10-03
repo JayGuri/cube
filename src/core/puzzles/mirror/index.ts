@@ -26,7 +26,6 @@ export async function createMirrorPlugin(): Promise<PuzzlePlugin> {
   return {
     id: 'mirror',
     displayName: 'Mirror Cube',
-    kpuzzleDefinitionId: '3x3x3',
 
     createInitialState: () => ({ raw: { pattern: cube3.createInitialState(), pieces: createPieces() } }),
     applyMove: (state, move) => {
@@ -40,12 +39,10 @@ export async function createMirrorPlugin(): Promise<PuzzlePlugin> {
     },
     isSolved: (state) => cube3.isSolved(rawOf(state).pattern),
     scramble: cube3.scramble,
-    solve: async (_state, history: Move[]) => solveFromHistory(history, 90, { keepOrientation: true }),
+    solve: async (_state, history: Move[], effort) => solveFromHistory(history, 90, { keepOrientation: true, effort }),
 
     buildGeometry: buildMirrorGeometry,
     colorScheme: { U: MIRROR_SILVER, D: MIRROR_SILVER, F: MIRROR_SILVER, B: MIRROR_SILVER, R: MIRROR_SILVER, L: MIRROR_SILVER },
-    // Unused by the mirror renderer (all one colour; shape carries the state).
-    pieceIdForFacelet: () => mirrorPieceId([1, 1, 1]),
     faceletColors: () =>
       new Map(
         createPieces().map(({ home }) => [
@@ -54,10 +51,6 @@ export async function createMirrorPlugin(): Promise<PuzzlePlugin> {
         ]),
       ),
 
-    gestureProfile: {
-      snapAngleDeg: 90,
-      grabMode: 'instant',
-      twistAxisMode: 'screen-relative',
-    },
+    snapAngleDeg: 90,
   }
 }

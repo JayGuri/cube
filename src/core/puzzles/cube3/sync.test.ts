@@ -2,11 +2,10 @@ import { Alg } from 'cubing/alg'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { applyMove, createInitialState, initCube3Logic, movesFromAlg } from './logic'
 import { CUBE3_COLORS, facesOfSlot, type Face } from './geometry'
-import { ALL_SLOTS, faceletColors, pieceIdForFacelet, syncMeshToState } from './sync'
+import { ALL_SLOTS, faceletColors } from './sync'
 import { slotId } from './geometry'
 import type { PuzzleState } from '../PuzzlePlugin'
 
-const move = (s: string) => ({ alg: new Alg(s), snapAngleDeg: 90 })
 const run = (alg: string) => {
   let state = createInitialState()
   for (const m of movesFromAlg(new Alg(alg))) state = applyMove(state, m)
@@ -21,24 +20,6 @@ function colorAt(state: PuzzleState, slot: [number, number, number], face: Face)
 describe('cube3 sync', () => {
   beforeAll(async () => {
     await initCube3Logic()
-  })
-
-  it('tracks a corner piece through a single move consistently', () => {
-    const solved = createInitialState()
-    const idBefore = pieceIdForFacelet(solved, 'URF')
-    const idAfter = pieceIdForFacelet(applyMove(solved, move('R')), 'URF')
-    expect(idAfter).toBeDefined()
-    expect(idAfter).not.toBe(idBefore)
-  })
-
-  it('accepts facelet labels in any order', () => {
-    const s = createInitialState()
-    expect(pieceIdForFacelet(s, 'URF')).toBe(pieceIdForFacelet(s, 'UFR'))
-    expect(pieceIdForFacelet(s, 'RFU')).toBe(pieceIdForFacelet(s, 'FUR'))
-  })
-
-  it('rejects a facelet that is not a real slot', () => {
-    expect(() => pieceIdForFacelet(createInitialState(), 'UUU')).toThrow(/unknown/)
   })
 
   it('covers every one of the 26 cubies', () => {
@@ -101,12 +82,6 @@ describe('cube3 sync', () => {
       if (JSON.stringify(after(scrambled, id)) !== JSON.stringify(faces)) differences++
     }
     expect(differences).toBeGreaterThan(0)
-  })
-
-  it('syncMeshToState maps every slot label to a piece id', () => {
-    const map = syncMeshToState(createInitialState())
-    expect(map.size).toBe(26)
-    for (const id of map.values()) expect(id).toMatch(/^cube3-(CORNERS|EDGES|CENTERS)-\d+$/)
   })
 
   it('facesOfSlot agrees with the slot table', () => {

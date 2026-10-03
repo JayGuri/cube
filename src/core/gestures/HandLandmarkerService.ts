@@ -45,7 +45,7 @@ export class HandLandmarkerService {
   }
 }
 
-export function toLandmarkFrame(
+function toLandmarkFrame(
   result: HandLandmarkerResult,
   timestampMs: number,
 ): LandmarkFrame {

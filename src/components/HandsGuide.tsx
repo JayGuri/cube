@@ -182,11 +182,17 @@ export function GuidePanel({
   status,
   onStop,
   showHands,
+  optimal = false,
+  refining = false,
 }: {
   guide: GuideState | null
   status: 'solving' | 'following' | 'done'
   onStop: () => void
   showHands: boolean
+  /** The route is provably the shortest there is. */
+  optimal?: boolean
+  /** A deeper search for a shorter route is running. */
+  refining?: boolean
 }) {
   const step = guide ? guide.steps[guide.index] : null
   const sign = step ? signForNotation(step) : null
@@ -228,6 +234,14 @@ export function GuidePanel({
                 </>
               )}{' '}
               · <span data-testid="guide-progress">{guide.index + 1}/{guide.steps.length}</span>
+              {optimal ? (
+                <span data-testid="guide-optimal" className="text-[#4ED48A]">
+                  {' '}
+                  · shortest possible
+                </span>
+              ) : refining ? (
+                <span data-testid="guide-refining"> · looking for shorter…</span>
+              ) : null}
             </span>
           </span>
           {showHands && sign && <PoseIcon layer={sign.layer} hand={sign.hand} size={30} />}

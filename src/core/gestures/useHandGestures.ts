@@ -49,7 +49,7 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
 
   const [frame, setFrame] = useState<LandmarkFrame | null>(null)
   const [tick, setTick] = useState<GestureTick | null>(null)
-  const [gestureState, setGestureState] = useState<GestureState>(gestureStateRef.current)
+  const [gestureState, setGestureState] = useState<GestureState>(createInitialGestureState)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 

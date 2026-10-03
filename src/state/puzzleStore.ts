@@ -8,14 +8,11 @@ export interface PuzzleStore {
   moveHistory: Move[]
   status: 'idle' | 'loading' | 'ready' | 'error'
   error: string | null
-  busy: boolean
 
   load: (id: PuzzleId) => Promise<void>
   applyMove: (move: Move) => void
   undo: () => void
   reset: () => void
-  scramble: () => Promise<void>
-  solve: () => Promise<void>
   isSolved: () => boolean
 }
 
@@ -25,7 +22,6 @@ export const usePuzzleStore = create<PuzzleStore>((set, get) => ({
   moveHistory: [],
   status: 'idle',
   error: null,
-  busy: false,
 
   load: async (id) => {
     const loader = PUZZLE_REGISTRY[id]
@@ -70,38 +66,6 @@ export const usePuzzleStore = create<PuzzleStore>((set, get) => ({
     const { plugin } = get()
     if (!plugin) return
     set({ state: plugin.createInitialState(), moveHistory: [] })
-  },
-
-  scramble: async () => {
-    const { plugin } = get()
-    if (!plugin) return
-    set({ busy: true })
-    try {
-      const moves = await plugin.scramble()
-      let next = plugin.createInitialState()
-      for (const m of moves) next = plugin.applyMove(next, m)
-      set({ state: next, moveHistory: moves })
-    } catch (e) {
-      set({ error: (e as Error).message })
-    } finally {
-      set({ busy: false })
-    }
-  },
-
-  solve: async () => {
-    const { plugin, state } = get()
-    if (!plugin || !state) return
-    set({ busy: true, error: null })
-    try {
-      const moves = await plugin.solve(state, get().moveHistory)
-      let next = state
-      for (const m of moves) next = plugin.applyMove(next, m)
-      set({ state: next, moveHistory: [...get().moveHistory, ...moves] })
-    } catch (e) {
-      set({ error: (e as Error).message })
-    } finally {
-      set({ busy: false })
-    }
   },
 
   isSolved: () => {

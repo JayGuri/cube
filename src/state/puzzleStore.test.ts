@@ -52,26 +52,4 @@ describe('puzzleStore', () => {
     expect(store().isSolved()).toBe(true)
     expect(store().moveHistory).toHaveLength(0)
   })
-
-  it('scramble unsolves the puzzle and records the moves', async () => {
-    await store().scramble()
-    expect(store().isSolved()).toBe(false)
-    expect(store().moveHistory.length).toBeGreaterThan(0)
-    expect(store().busy).toBe(false)
-  })
-
-  it('solve() drives the puzzle back to solved and clears busy', async () => {
-    await store().scramble()
-    expect(store().isSolved()).toBe(false)
-    await store().solve()
-    expect(store().busy).toBe(false)
-    expect(store().error).toBeNull()
-    expect(store().isSolved()).toBe(true)
-  }, 60_000)
-
-  it('solve() on an untouched cube is a no-op, not an error', async () => {
-    await store().solve()
-    expect(store().error).toBeNull()
-    expect(store().isSolved()).toBe(true)
-  })
 })

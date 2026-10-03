@@ -40,7 +40,7 @@ const FACES = [
   { color: RIGHT, stickers: faceStickers(UP_RIGHT, DOWN) },
 ]
 
-export function LogoMark({ size = 36 }: { size?: number }) {
+function LogoMark({ size = 36 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden className="shrink-0">
       <path d="M24 2.5 43.5 13.75V34.25L24 45.5 4.5 34.25V13.75Z" fill={INK} stroke={INK} strokeWidth="3" strokeLinejoin="round" />

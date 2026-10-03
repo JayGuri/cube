@@ -12,7 +12,7 @@ import {
 // Pure geometry over MediaPipe landmarks. No camera, no DOM, no Three.js -- so
 // every gesture rule built on top of this is unit-testable without hardware.
 
-export const subtract = (a: Landmark, b: Landmark): Landmark => ({
+const subtract = (a: Landmark, b: Landmark): Landmark => ({
   x: a.x - b.x,
   y: a.y - b.y,
   z: a.z - b.z,
@@ -24,9 +24,9 @@ export const cross = (a: Landmark, b: Landmark): Landmark => ({
   z: a.x * b.y - a.y * b.x,
 })
 
-export const dot = (a: Landmark, b: Landmark): number => a.x * b.x + a.y * b.y + a.z * b.z
+const dot = (a: Landmark, b: Landmark): number => a.x * b.x + a.y * b.y + a.z * b.z
 
-export const length = (a: Landmark): number => Math.sqrt(dot(a, a))
+const length = (a: Landmark): number => Math.sqrt(dot(a, a))
 
 export const distance = (a: Landmark, b: Landmark): number => length(subtract(a, b))
 

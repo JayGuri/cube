@@ -40,7 +40,7 @@ describe('mirror plugin', () => {
     const plugin = await createMirrorPlugin()
     const scramble = await plugin.scramble()
     let s = scramble.reduce(plugin.applyMove, plugin.createInitialState())
-    const solution = await plugin.solve(s, scramble)
+    const { moves: solution } = await plugin.solve(s, scramble)
     s = solution.reduce(plugin.applyMove, s)
     expect(plugin.isSolved(s)).toBe(true)
     for (const p of mirrorPiecesOf(s)) {

@@ -139,3 +139,57 @@ test('practice positions can be picked, and lessons link forward and back', asyn
   await page.getByRole('link', { name: 'Skip ahead' }).click()
   await expect(page).toHaveURL(/\/learn\/corners/)
 })
+
+test("after a scramble the move counter starts at 0, separate from the scramble, and a timer runs", async ({ page }) => {
+  test.setTimeout(90_000)
+  await page.goto("/play/cube3")
+  await expect(page.getByTestId("app")).toHaveAttribute("data-solver-ready", "true", { timeout: 45_000 })
+  await expect(page.getByTestId("scramble-length")).toHaveCount(0)
+  await page.getByRole("button", { name: /scramble/i }).click()
+  await expect(page.getByTestId("guide-me")).toBeEnabled({ timeout: 40_000 })
+  await expect(page.getByTestId("scramble-length")).toHaveText(/Scramble: \d+/)
+  await expect(page.getByTestId("move-count")).toHaveText("0 moves")
+  await expect(page.getByTestId("solve-timer")).toHaveCount(0)
+  await page.keyboard.press("r")
+  await expect(page.getByTestId("move-count")).toHaveText("1 moves")
+  await expect(page.getByTestId("solve-timer")).toBeVisible()
+  // Reset clears the session.
+  await page.getByRole("button", { name: /^reset$/i }).click()
+  await expect(page.getByTestId("scramble-length")).toHaveCount(0)
+  await expect(page.getByTestId("move-count")).toHaveText("0 moves")
+})
+
+test("two scrambles in a row are different", async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.goto("/play/cube3")
+  await expect(page.getByTestId("app")).toHaveAttribute("data-solver-ready", "true", { timeout: 45_000 })
+  const recent = async () => JSON.parse((await page.evaluate(() => localStorage.getItem("palmtwist.recentScrambles.v1"))) ?? "[]") as string[]
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole("button", { name: /scramble/i }).click()
+    await expect(page.getByTestId("guide-me")).toBeEnabled({ timeout: 40_000 })
+  }
+  const list = await recent()
+  expect(list.length).toBe(2)
+  expect(list[0]).not.toBe(list[1])
+})
+
+test("close to solved, the guide proves its route is the shortest possible and says so", async ({ page }) => {
+  await page.goto("/play/cube3")
+  await expect(page.getByTestId("app")).toHaveAttribute("data-solver-ready", "true", { timeout: 45_000 })
+  for (const key of ["r", "u", "f", "l"]) await page.keyboard.press(key)
+  await page.getByTestId("guide-me").click()
+  await expect(page.getByTestId("guide-step")).toBeVisible({ timeout: 30_000 })
+  await expect(page.getByTestId("guide-progress")).toHaveText("1/4")
+  await expect(page.getByTestId("guide-optimal")).toBeVisible({ timeout: 15_000 })
+})
+
+test("a wrong move gets an instant undo step instead of a wait", async ({ page }) => {
+  await page.goto("/play/cube3")
+  await expect(page.getByTestId("app")).toHaveAttribute("data-solver-ready", "true", { timeout: 45_000 })
+  for (const key of ["r", "u", "f"]) await page.keyboard.press(key)
+  await page.getByTestId("guide-me").click()
+  await expect(page.getByTestId("guide-step")).toHaveText("F'", { timeout: 30_000 })
+  await page.keyboard.press("d") // not the move shown
+  await expect(page.getByTestId("guide-step")).toHaveText("D'")
+  await expect(page.getByTestId("guide-progress")).toHaveText("1/4")
+})

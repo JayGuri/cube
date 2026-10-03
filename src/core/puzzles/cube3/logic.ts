@@ -1,7 +1,7 @@
 import { Alg } from 'cubing/alg'
 import type { KPattern, KPuzzle } from 'cubing/kpuzzle'
 import { cube3x3x3 } from 'cubing/puzzles'
-import { randomScrambleForEvent } from 'cubing/scramble'
+import { newScramble } from '../../solvers/kociemba'
 import { isPatternSolved } from '../kpattern'
 import type { Move, PuzzleState } from '../PuzzlePlugin'
 
@@ -54,5 +54,5 @@ export function movesFromAlg(alg: Alg, snapAngleDeg = 90): Move[] {
 }
 
 export async function scramble(): Promise<Move[]> {
-  return movesFromAlg(await randomScrambleForEvent('333'))
+  return newScramble(90)
 }

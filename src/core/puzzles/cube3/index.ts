@@ -8,7 +8,7 @@ import {
   isSolved,
   scramble,
 } from './logic'
-import { faceletColors, pieceIdForFacelet } from './sync'
+import { faceletColors } from './sync'
 
 // async because the cubing KPuzzle load is async -- callers never see an
 // uninitialised plugin.
@@ -18,24 +18,18 @@ export async function createCube3Plugin(): Promise<PuzzlePlugin> {
   return {
     id: 'cube3',
     displayName: '3x3 Cube',
-    kpuzzleDefinitionId: '3x3x3',
 
     createInitialState,
     applyMove,
     isSolved,
     scramble,
-    solve: async (_state, history: Move[]) => solveFromHistory(history, 90),
+    solve: async (_state, history: Move[], effort) => solveFromHistory(history, 90, { effort }),
 
     buildGeometry: buildCube3Geometry,
     colorScheme: CUBE3_COLORS,
-    pieceIdForFacelet,
     faceletColors,
 
-    gestureProfile: {
-      snapAngleDeg: 90,
-      grabMode: 'instant',
-      twistAxisMode: 'screen-relative',
-    },
+    snapAngleDeg: 90,
 
   }
 }

@@ -34,7 +34,8 @@ Hand-controlled cube demos usually do one thing: a pinch or a swipe turns a face
 | **Moves by hand** | A few moves, or grab-and-twist | **Every layer turn, including slices**, from a small finger-sign alphabet. The *fingers* pick the layer and the *hand* picks the direction |
 | **Two hands** | One hand does everything | Right hand turns clockwise, left hand turns back, each with its own colour, so you never think about direction |
 | **Solving help** | Press solve, watch it play | **You solve it yourself by default.** Ask for a guide and an arrow on the cube shows the next move, in finger signs too |
-| **The solver** | Takes the first answer a library finds | **Written from scratch**, and it keeps searching from six angles for a shorter one, measured in the steps *you* would make |
+| **The solver** | Takes the first answer a library finds | **Written from scratch.** It searches six angles at once for a shorter route, keeps refining while you play, and **proves the route is the shortest possible** once the cube is close enough |
+| **Scrambles** | A random string of moves | A **uniformly random cube state** from the browser's secure random generator, solved and played backwards, never repeating a recent one |
 | **Puzzles** | One cube | A 3×3 and a **silver Mirror Cube** whose solved state is a *shape*, not a colour |
 | **Learning** | None | An **Academy** that teaches the layer-by-layer method with live goals, a demo of every position and the finger signs for each move |
 | **Privacy** | Often needs a server | **No backend.** Hand tracking, solving and 3D all run on your device |
@@ -73,7 +74,9 @@ An open hand moving orbits the camera, two open hands spreading zoom it, and a c
 
 - **Reading your hands.** MediaPipe finds 21 points on each hand. Palmtwist checks which fingertips are above their knuckles, takes a quick vote over a few frames so a flicker never counts, and turns a steady sign into a move.
 - **Keeping track of a cube.** A cube is a list of where each piece is and how it is twisted. Every move is just a rearrangement of that list, so undo, scramble and "is it solved?" are all simple.
-- **Finding a short solution.** The solver splits the problem in two: first get the cube into a much simpler family of positions, then finish from there. It tries many ways of doing both and keeps the cheapest, counting steps the way a person makes them. Looking at the same cube from six angles gives it six chances at a shorter answer.
+- **Finding a short solution.** The solver splits the problem in two: first get the cube into a much simpler family of positions, then finish from there. It tries many ways of doing both, from six angles side by side, and keeps the cheapest, counting steps the way a person makes them. A random scramble comes out at about 24 steps; no position ever needs more than 26.
+- **Proving it is the shortest.** A second search works through every cheaper possibility in order. If it finds one, that is the shortest route there is; if it rules them all out, the route in hand is proven shortest. That takes a blink near the end of a solve and would take hours on a fully scrambled cube, so the guide says "shortest possible" only when it has the proof.
+- **Scrambling fairly.** Every scramble is one of the 43 quintillion possible cubes, picked with equal chance, the same way competition scramblers work.
 - **The Mirror Cube.** Each block remembers where it is and which way it is rotated, so the shape of the whole cube *is* the puzzle state.
 - **Teaching.** Each lesson is a question asked of the cube ("are all four white edges in place?"), checked live to fill the progress bar.
 
@@ -92,8 +95,6 @@ npx playwright test      # end-to-end tests
 npm run build            # type-check and production build
 ```
 
-`docs/TESTING.md` has the hands-on checklist for what only a person with a webcam can judge.
-
 ## Project layout
 
 ```
@@ -106,7 +107,7 @@ src/
     academy/     lessons, and the checks that decide a stage is done
   state/         small stores: puzzle, settings, Academy progress
 tests/e2e/       Playwright specs
-docs/            how it works, manual test checklist, screenshots
+docs/            how it works (the maths), screenshots
 ```
 
 ## Deploy

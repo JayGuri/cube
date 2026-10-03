@@ -88,12 +88,12 @@ export const DEFAULT_SIGN_OPTIONS: SignOptions = {
   swapHands: false,
 }
 
-export function realHandedness(label: Handedness, swapHands: boolean): Handedness {
+function realHandedness(label: Handedness, swapHands: boolean): Handedness {
   if (!swapHands) return label
   return label === 'Left' ? 'Right' : 'Left'
 }
 
-export function fingerPose(landmarks: Landmark[], extendedRatio: number): string {
+function fingerPose(landmarks: Landmark[], extendedRatio: number): string {
   const wrist = landmarks[0]
   const scale = handScale(landmarks)
   return FINGER_TIPS.map((tip) => (distance(landmarks[tip], wrist) / scale > extendedRatio ? '1' : '0')).join('')

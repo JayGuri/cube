@@ -28,9 +28,9 @@ export const THUMB_TIP = 4
 export const INDEX_MCP = 5
 export const INDEX_TIP = 8
 export const MIDDLE_MCP = 9
-export const MIDDLE_TIP = 12
-export const RING_TIP = 16
+const MIDDLE_TIP = 12
+const RING_TIP = 16
 export const PINKY_MCP = 17
-export const PINKY_TIP = 20
+const PINKY_TIP = 20
 
 export const FINGERTIPS = [INDEX_TIP, MIDDLE_TIP, RING_TIP, PINKY_TIP]

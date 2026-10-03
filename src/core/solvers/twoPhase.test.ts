@@ -2,7 +2,7 @@ import { Alg } from 'cubing/alg'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { applyMove, createInitialState, initCube3Logic, isSolved, movesFromAlg } from '../puzzles/cube3/logic'
 import { solveScramble } from './kociembaCore'
-import { initTwoPhase, solveTwoPhase } from './twoPhase'
+import { initProofTables, initTwoPhase, randomCubie, randomScramble, solveDetailed, solveTwoPhase } from './twoPhase'
 
 // Deterministic pseudo-random numbers, so a failure can be reproduced.
 function rng(seed: number) {
@@ -101,5 +101,73 @@ describe('solution length', () => {
       total += quarterTurns(solution)
     }
     expect(total / runs).toBeLessThan(29)
+  }, 60_000)
+})
+
+describe("proving a solution is the shortest", () => {
+  beforeAll(async () => {
+    await initCube3Logic()
+    initProofTables()
+  }, 60_000)
+
+  it("solves lightly scrambled cubes optimally and says so", () => {
+    const next = rng(11)
+    for (let i = 0; i < 20; i++) {
+      const scramble = randomTurns(next, ["U", "R", "F", "D", "L", "B"], 6)
+      const result = solveDetailed(scramble, { timeMs: 200, proveMs: 800 })
+      expect(solvedAfter(scramble, result.solution), scramble).toBe(true)
+      // Proven: nothing cheaper exists, and it is never worse than undoing the scramble.
+      expect(result.noneBelow, scramble).toBe(result.cost)
+      expect(result.cost, scramble).toBeLessThanOrEqual(quarterTurns(scramble))
+    }
+  }, 60_000)
+
+  it("never claims a proof it does not have: noneBelow is at most the cost", () => {
+    const next = rng(3)
+    for (let i = 0; i < 5; i++) {
+      const scramble = randomTurns(next, ["U", "R", "F", "D", "L", "B"], 30)
+      const result = solveDetailed(scramble, { timeMs: 150, proveMs: 150 })
+      expect(solvedAfter(scramble, result.solution)).toBe(true)
+      expect(result.noneBelow).toBeLessThanOrEqual(result.cost)
+    }
+  }, 60_000)
+
+  it("uses an outside bound: with a 3-step route already known, it proves 3 is the floor", () => {
+    const result = solveDetailed("R U F", { timeMs: 100, proveMs: 500, bound: 3 })
+    expect(result.cost).toBe(3)
+    expect(result.noneBelow).toBe(3)
+  })
+})
+
+describe("random-state scrambles", () => {
+  beforeAll(async () => {
+    await initCube3Logic()
+    initTwoPhase()
+  }, 60_000)
+
+  it("draws only reachable cubes: parities agree, twists and flips add up", () => {
+    const parity = (p: number[]) => {
+      let n = 0
+      for (let i = 0; i < p.length; i++) for (let j = i + 1; j < p.length; j++) if (p[j] < p[i]) n++
+      return n % 2
+    }
+    for (let i = 0; i < 200; i++) {
+      const c = randomCubie()
+      expect(parity(c.cp)).toBe(parity(c.ep))
+      expect(c.co.reduce((a, b) => a + b, 0) % 3).toBe(0)
+      expect(c.eo.reduce((a, b) => a + b, 0) % 2).toBe(0)
+      expect([...c.cp].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+      expect([...c.ep].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    }
+  })
+
+  it("makes scrambles that are all different, long enough, and solvable", () => {
+    const scrambles = Array.from({ length: 30 }, () => randomScramble())
+    expect(new Set(scrambles).size).toBe(30)
+    for (const scramble of scrambles) expect(scramble.split(" ").length).toBeGreaterThanOrEqual(16)
+    for (const scramble of scrambles.slice(0, 5)) {
+      expect(solvedAfter(scramble, "")).toBe(false)
+      expect(solvedAfter(scramble, solveTwoPhase(scramble, { timeMs: 50 }))).toBe(true)
+    }
   }, 60_000)
 })

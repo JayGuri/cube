@@ -25,14 +25,10 @@ describe('cube3 plugin', () => {
     expect(plugin.isSolved(state)).toBe(true)
   })
 
-  it('exposes colours and a gesture profile matching the 3x3 spec row', async () => {
+  it('exposes the standard colours and quarter-turn snapping', async () => {
     const plugin = await createCube3Plugin()
     expect(plugin.colorScheme.U).toBe('#FFFFFF')
-    expect(plugin.gestureProfile).toEqual({
-      snapAngleDeg: 90,
-      grabMode: 'instant',
-      twistAxisMode: 'screen-relative',
-    })
+    expect(plugin.snapAngleDeg).toBe(90)
   })
 
   it('solve() returns moves that actually solve a scrambled cube', async () => {
@@ -42,7 +38,7 @@ describe('cube3 plugin', () => {
     for (const m of scramble) state = plugin.applyMove(state, m)
     expect(plugin.isSolved(state)).toBe(false)
 
-    const solution = await plugin.solve(state, scramble)
+    const { moves: solution } = await plugin.solve(state, scramble)
     expect(solution.length).toBeGreaterThan(0)
     for (const m of solution) state = plugin.applyMove(state, m)
     expect(plugin.isSolved(state)).toBe(true)
@@ -50,6 +46,6 @@ describe('cube3 plugin', () => {
 
   it('solve() on an already-solved cube returns no moves', async () => {
     const plugin = await createCube3Plugin()
-    await expect(plugin.solve(plugin.createInitialState(), [])).resolves.toEqual([])
+    await expect(plugin.solve(plugin.createInitialState(), [])).resolves.toEqual({ moves: [], optimal: true })
   })
 })
