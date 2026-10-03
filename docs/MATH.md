@@ -458,6 +458,14 @@ wait. A better one is then looked for in the background:
   guide never gets longer, and the route is never longer than undoing the
   scramble in the same units (quarter turns).
 
+**Something that did not help.** A natural next idea is a peephole pass: any
+stretch of the answer is itself a small cube, so replace each stretch of up to
+11 quarter turns by its provably shortest equivalent. It works (it turns
+`R U U U R` into `R U' R`), but on random scrambles it gained nothing: the
+average stayed at 24.9 before and after, because two-phase answers are already
+shortest over every stretch that short. Stretches long enough to matter are too
+slow to prove. It was removed rather than kept as dead weight.
+
 ### Random scrambles
 
 A scramble is not a random string of moves, which would favour some cubes over

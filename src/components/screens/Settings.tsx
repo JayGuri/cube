@@ -1,5 +1,5 @@
 import { useSettingsStore } from '../../state/settingsStore'
-import { Logo } from '../Logo'
+import { SiteNav } from '../SiteNav'
 
 const TOGGLE = (on: boolean) =>
   `h-6 w-11 rounded-full transition ${on ? 'bg-[#FFD500]' : 'bg-white/15'} relative`
@@ -11,8 +11,8 @@ export function Settings() {
 
   return (
     <main className="min-h-dvh bg-[#16171B] px-6 py-12 text-[#ECEAE4]">
-      <div className="mx-auto max-w-xl">
-        <Logo size={40} />
+      <div className="mx-auto max-w-2xl">
+        <SiteNav size={40} />
         <h1 className="font-display mt-10 text-4xl font-extrabold tracking-tight">Settings</h1>
 
         <div className="mt-8 space-y-6">

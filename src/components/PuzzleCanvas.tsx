@@ -567,8 +567,8 @@ function PuzzleCanvasInner({
       >
         <FitToScreen />
         <color attach="background" args={['#16171B']} />
-        <ambientLight intensity={0.85} />
-        <directionalLight position={[6, 8, 5]} intensity={1.1} />
+        <ambientLight intensity={1.25} />
+        <directionalLight position={[6, 8, 5]} intensity={1.7} />
         <directionalLight position={[-6, -4, -5]} intensity={0.35} />
         {plugin.id === 'mirror' && <StudioEnvironment />}
         <group scale={scale}>

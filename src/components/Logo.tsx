@@ -51,13 +51,13 @@ function LogoMark({ size = 36 }: { size?: number }) {
   )
 }
 
-export function Logo({ to = '/', size = 36 }: { to?: string; size?: number }) {
+export function Logo({ to = '/', size = 36, iconOnlyOnPhone = false }: { to?: string; size?: number; iconOnlyOnPhone?: boolean }) {
   return (
     <Link to={to} className="group inline-flex items-center gap-3" aria-label="Palmtwist, home">
       <span className="transition-transform duration-300 group-hover:-rotate-12 group-hover:scale-110">
         <LogoMark size={size} />
       </span>
-      <span className="font-display font-extrabold lowercase leading-none tracking-tight" style={{ fontSize: size * 0.78 }}>
+      <span className={`font-display font-extrabold lowercase leading-none tracking-tight ${iconOnlyOnPhone ? 'max-[520px]:hidden' : ''}`} style={{ fontSize: size * 0.78 }}>
         palmtwist
       </span>
     </Link>

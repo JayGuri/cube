@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { LESSONS } from '../../core/academy/lessons'
 import { useAcademyStore } from '../../state/academyStore'
-import { Logo } from '../Logo'
+import { SiteNav } from '../SiteNav'
 
 // The lesson list. One path from "meet the cube" to a solved cube.
 
@@ -15,12 +15,7 @@ export function Academy() {
   return (
     <main className="min-h-dvh bg-[#16171B] text-[#ECEAE4]">
       <div className="mx-auto max-w-3xl px-6 pb-24 pt-8">
-        <nav className="flex items-center justify-between text-sm">
-          <Logo size={40} />
-          <Link to="/play/cube3" className="text-[#9C9AA3] hover:text-[#ECEAE4]">
-            Free play
-          </Link>
-        </nav>
+        <SiteNav size={40} />
 
         <header className="mt-14">
           <h1 className="font-display min-h-[3.2rem] text-5xl font-extrabold leading-[1.02] tracking-tight sm:min-h-[3.8rem] sm:text-6xl">

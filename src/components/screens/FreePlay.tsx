@@ -684,7 +684,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
   return (
     <main className="flex h-dvh flex-col overflow-hidden bg-[#16171B] text-[#ECEAE4]">
       <header className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] px-4 py-3.5 sm:px-6">
-        <Logo size={34} />
+        <Logo size={34} iconOnlyOnPhone />
         <div className="flex min-w-0 items-center gap-3 max-sm:sr-only">
         <span className="text-white/20" aria-hidden>
           /

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { LESSONS } from '../../core/academy/lessons'
 import { useAcademyStore } from '../../state/academyStore'
 import { CssCube } from '../CssCube'
+import { ColourStrip, SiteNav } from '../SiteNav'
 import { Logo } from '../Logo'
 import { SignPlayground } from '../SignPlayground'
 
@@ -82,25 +83,9 @@ export function Home() {
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[46rem] bg-[radial-gradient(45%_45%_at_78%_32%,rgba(76,201,240,0.16),transparent),radial-gradient(35%_35%_at_58%_62%,rgba(255,213,0,0.10),transparent)]"
         />
 
-        <nav className="flex items-center justify-between text-base">
-          <Logo size={44} />
-          <div className="flex items-center gap-5 text-[#9C9AA3]">
-            <Link to="/learn" className="hover:text-[#ECEAE4]">
-              Learn
-            </Link>
-            <Link to="/play/cube3" className="hover:text-[#ECEAE4]">
-              Play
-            </Link>
-            <Link to="/settings" className="hover:text-[#ECEAE4]">
-              Settings
-            </Link>
-            <a href={GITHUB} className="hover:text-[#ECEAE4]" target="_blank" rel="noreferrer">
-              GitHub
-            </a>
-          </div>
-        </nav>
+        <SiteNav />
 
-        <section className="grid items-center gap-4 pt-10 md:grid-cols-[1.1fr_1fr] md:pt-14">
+        <section className="grid items-center gap-4 pt-8 md:grid-cols-[1.1fr_1fr] md:pt-6">
           <div>
             <h1 className="font-display text-[clamp(3.2rem,8.4vw,6.6rem)] font-extrabold leading-[0.94] tracking-[-0.03em]">
               Solve the cube with your hands.
@@ -126,16 +111,16 @@ export function Home() {
             </div>
           </div>
           {/* Two cubes of the same size, side by side, each on its own clock. */}
-          <div className="relative flex h-[17rem] items-center justify-center gap-2 sm:h-[26rem] sm:gap-6">
-            <div aria-hidden className="absolute bottom-10 left-[25%] h-7 w-44 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl sm:bottom-14" />
-            <div aria-hidden className="absolute bottom-10 left-[75%] h-7 w-44 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl sm:bottom-14" />
+          <div className="relative mt-4 flex h-[18rem] items-center justify-center sm:h-[30rem] md:-mt-10 md:gap-6">
+            <div aria-hidden className="absolute bottom-8 left-[25%] h-7 w-48 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl sm:bottom-10" />
+            <div aria-hidden className="absolute bottom-8 left-[75%] h-7 w-48 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl sm:bottom-10" />
             <div className="grid flex-1 place-items-center">
-              <div className="scale-[0.5] sm:scale-100">
+              <div className="scale-[0.6] sm:scale-[1.0]">
                 <CssCube cubie={56} autoplay tumble followPointer />
               </div>
             </div>
             <div className="grid flex-1 place-items-center">
-              <div className="scale-[0.5] sm:scale-100">
+              <div className="scale-[0.6] sm:scale-[1.0]">
                 <CssCube variant="mirror" cubie={56} autoplay tumble followPointer />
               </div>
             </div>
@@ -226,14 +211,18 @@ export function Home() {
           </dl>
         </section>
 
-        <footer className="mt-28 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-8 text-sm text-[#9C9AA3]">
-          <Logo size={32} />
-          <p>
-            Made by{' '}
-            <a href="https://github.com/JayGuri" target="_blank" rel="noreferrer" className="text-[#ECEAE4] underline-offset-4 hover:underline">
-              Jay Guri
-            </a>
-          </p>
+        <footer className="mt-28 border-t border-white/10 pt-8 text-sm text-[#9C9AA3]">
+          <ColourStrip />
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+            <span className="text-[#ECEAE4]"><Logo size={32} /></span>
+            <p>
+              Made by{' '}
+              <a href="https://github.com/JayGuri" target="_blank" rel="noreferrer" className="text-[#ECEAE4] underline-offset-4 hover:underline">
+                Jay Guri
+              </a>
+              . Runs entirely in your browser.
+            </p>
+          </div>
         </footer>
       </div>
     </main>
