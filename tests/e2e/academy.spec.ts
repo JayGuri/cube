@@ -193,3 +193,18 @@ test("a wrong move gets an instant undo step instead of a wait", async ({ page }
   await expect(page.getByTestId("guide-step")).toHaveText("D'")
   await expect(page.getByTestId("guide-progress")).toHaveText("1/4")
 })
+
+test("the guide's route is never longer than simply undoing the scramble, in the same units", async ({ page }) => {
+  test.setTimeout(120_000)
+  await page.goto("/play/cube3")
+  await expect(page.getByTestId("app")).toHaveAttribute("data-solver-ready", "true", { timeout: 45_000 })
+  await page.getByRole("button", { name: /scramble/i }).click()
+  await expect(page.getByTestId("guide-me")).toBeEnabled({ timeout: 40_000 })
+  const scrambleSteps = Number((await page.getByTestId("scramble-length").textContent())!.match(/\d+/)![0])
+  await page.getByTestId("guide-me").click()
+  await expect(page.getByTestId("guide-step")).toBeVisible({ timeout: 30_000 })
+  const total = Number((await page.getByTestId("guide-progress").textContent())!.split("/")[1])
+  // Both numbers count a half turn as two, so undoing the scramble would take exactly scrambleSteps.
+  expect(total).toBeLessThanOrEqual(scrambleSteps)
+  expect(total).toBeGreaterThan(10)
+})

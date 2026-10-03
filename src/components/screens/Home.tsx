@@ -125,18 +125,18 @@ export function Home() {
               </Link>
             </div>
           </div>
-          {/* Two cubes, each scrambling and solving on its own clock. */}
-          <div className="relative h-[21rem] sm:h-[28rem]">
-            <div aria-hidden className="absolute left-[36%] top-[78%] h-8 w-56 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl" />
-            <div aria-hidden className="absolute left-[80%] top-[94%] h-6 w-36 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl" />
-            <div className="absolute left-[36%] top-[40%]">
-              <div className="scale-[0.66] sm:scale-100">
-                <CssCube cubie={78} autoplay tumble followPointer />
+          {/* Two cubes of the same size, side by side, each on its own clock. */}
+          <div className="relative flex h-[17rem] items-center justify-center gap-2 sm:h-[26rem] sm:gap-6">
+            <div aria-hidden className="absolute bottom-10 left-[25%] h-7 w-44 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl sm:bottom-14" />
+            <div aria-hidden className="absolute bottom-10 left-[75%] h-7 w-44 -translate-x-1/2 rounded-[50%] bg-black/60 blur-xl sm:bottom-14" />
+            <div className="grid flex-1 place-items-center">
+              <div className="scale-[0.5] sm:scale-100">
+                <CssCube cubie={56} autoplay tumble followPointer />
               </div>
             </div>
-            <div className="absolute left-[80%] top-[72%]">
-              <div className="scale-[0.66] sm:scale-100">
-                <CssCube variant="mirror" cubie={44} autoplay tumble followPointer />
+            <div className="grid flex-1 place-items-center">
+              <div className="scale-[0.5] sm:scale-100">
+                <CssCube variant="mirror" cubie={56} autoplay tumble followPointer />
               </div>
             </div>
           </div>

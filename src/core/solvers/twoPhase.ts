@@ -316,9 +316,14 @@ function buildPrune(
 const STILL = new Uint16Array(N_MOVES)
 const buildPrune1 = (n: number, move: Uint16Array, goal: number) => buildPrune(1, n, STILL, move, ALL_MOVES, 0, goal)
 
-/** Builds the two-phase move and pruning tables once (under two seconds, about 7 MB). Safe to call repeatedly. */
+/** Builds every move and pruning table once (about two and a half seconds, 12 MB). Safe to call repeatedly. */
 export function initTwoPhase(): void {
   if (tables) return
+  buildTwoPhaseTables()
+  buildProofTables()
+}
+
+function buildTwoPhaseTables(): void {
 
   const twistMove = buildMoveTable(new Uint16Array(N_TWIST * N_MOVES), N_TWIST, ALL_MOVES, (t, m) => {
     const co = twistToCo(t)
@@ -370,10 +375,12 @@ const EDGES_A = [UR, UF, UL]
 const EDGES_B = [UB, DR, DF]
 const SLICE_EDGES = [FR, FL, BL, BR]
 
-/** Builds the optimal-search tables once (under a second, about 5 MB). Safe to call repeatedly. */
+/** Everything the solver needs is built by initTwoPhase; this name stays for callers that only care about the proofs. */
 export function initProofTables(): void {
-  if (proofTables) return
   initTwoPhase()
+}
+
+function buildProofTables(): void {
   const subsetMove = (k: number) =>
     buildMoveTable(new Uint16Array(12 ** k * N_MOVES), 12 ** k, ALL_MOVES, (code, m) => {
       let out = 0
@@ -453,49 +460,233 @@ function viewsOf(moves: number[]): View[] {
   return views
 }
 
-// ---- Two-phase search ------------------------------------------------------
-interface SearchOptions {
-  timeMs: number
-  /** Only accept solutions costing strictly less than this. */
-  bound?: number
+// ---- Improving search ------------------------------------------------------
+const STACK = 64
+const MAX_THRESHOLD = 40
+
+interface Root {
+  tw: number
+  fl: number
+  sl: number
+  cp: number
+  ea: number
+  eb: number
+  s4: number
 }
 
 /**
- * Two-phase search over several views at once. Returns the cheapest solution
- * found, or null when `bound` was given and nothing beat it in time. Without a
- * bound the first solution is always found, however long that takes.
+ * A two-phase search that can be paused, resumed and stopped at any moment.
+ *
+ * It works through the six views one cost level at a time (every view at cost
+ * 0, then every view at cost 1, ...), and inside a level it is an ordinary
+ * depth-first search -- but kept on an explicit stack instead of the call
+ * stack, so `run()` can hand control back after a few milliseconds and carry on
+ * later exactly where it left off. That is what lets the guide keep improving
+ * its route in the background while you play, and drop the work the instant
+ * you move.
+ *
+ * Phase 1 is pruned two ways. By the cost to reach G1 against the current
+ * level (the usual IDA* rule), and by a whole-cube lower bound -- the largest
+ * of the G1 distance, the corner permutation, six edges and the slice edges --
+ * against the best total found so far. That second rule cuts branches that
+ * could reach G1 but could never finish cheaper than what is already in hand.
+ *
+ * If every level below the best cost is exhausted, nothing cheaper exists:
+ * the best solution is provably optimal (`exhausted`).
  */
-function searchViews(views: View[], { timeMs, bound }: SearchOptions): number[] | null {
-  const t = tables!
-  const deadline = performance.now() + timeMs
-  let best: number[] | null = null
-  let bestCost = bound ?? Infinity
-  let nodes = 0
-  let timeUp = false
-  const path: number[] = []
-  let view = views[0]
+export class RefineJob {
+  /** Cheapest solution so far, as move numbers (see moveName), or null. */
+  best: number[] | null = null
+  bestCost: number
+  /** Every cost below `bestCost` has been ruled out, so the best solution is optimal. */
+  exhausted = false
+  /** Called each time a cheaper solution turns up. */
+  onImprove: ((path: number[], cost: number) => void) | null = null
 
-  const tick = () => {
-    if ((++nodes & 2047) === 0 && (best || bound !== undefined) && performance.now() > deadline) timeUp = true
+  /**
+   * Someone else (another worker searching other views) found a route costing
+   * `cost`: only strictly cheaper ones are worth looking for now.
+   */
+  tighten(cost: number): void {
+    if (cost < this.bestCost) this.bestCost = cost
   }
 
-  // Phase 2: finish inside G1 for at most `limit` more. The pruning value never
-  // over-estimates, so the first success at the lowest limit is the cheapest.
-  // Used only until the first solution exists.
-  function phase2First(cp: number, ue: number, sp: number, spent: number, limit: number, last: number, base: number): boolean {
-    tick()
+  private readonly views: View[]
+  private readonly roots: Root[]
+  private threshold = 0
+  private viewIndex = 0
+  private active = false
+  private depth = 0
+  // The depth-first stack: one entry per depth.
+  private readonly tw = new Int32Array(STACK)
+  private readonly fl = new Int32Array(STACK)
+  private readonly sl = new Int32Array(STACK)
+  private readonly cp = new Int32Array(STACK)
+  private readonly ea = new Int32Array(STACK)
+  private readonly eb = new Int32Array(STACK)
+  private readonly s4 = new Int32Array(STACK)
+  private readonly spent = new Int32Array(STACK)
+  private readonly last = new Int32Array(STACK)
+  private readonly next = new Int32Array(STACK)
+  private readonly fresh = new Uint8Array(STACK)
+  private readonly taken = new Int32Array(STACK) // the move made from each depth
+  private tail: number[] = [] // phase-2 moves under construction
+
+  /** `bound`: only solutions costing strictly less than this are wanted. */
+  constructor(views: View[], bound = Infinity) {
+    initTwoPhase()
+    this.views = views
+    this.bestCost = bound
+    this.roots = views.map((v) => ({
+      tw: twistOf(v.start.co),
+      fl: flipOf(v.start.eo),
+      sl: slicePositionOf(v.start.ep),
+      cp: permRank(v.start.cp, 8),
+      ea: edgeSlotsOf(v.start.ep, EDGES_A),
+      eb: edgeSlotsOf(v.start.ep, EDGES_B),
+      s4: edgeSlotsOf(v.start.ep, SLICE_EDGES),
+    }))
+  }
+
+  /** Advance for about `budgetMs`. Returns true once the search is finished. */
+  run(budgetMs: number): boolean {
+    const t = tables!
+    const p = proofTables!
+    const deadline = performance.now() + budgetMs
+    let nodes = 0
+    for (;;) {
+      if (this.exhausted) return true
+      if (!this.active) {
+        if (this.threshold >= this.bestCost || this.threshold > MAX_THRESHOLD) {
+          this.exhausted = true
+          return true
+        }
+        this.begin()
+      }
+      while (this.depth >= 0) {
+        if ((++nodes & 1023) === 0 && performance.now() > deadline) return false
+        const d = this.depth
+        if (this.fresh[d]) {
+          this.fresh[d] = 0
+          const spent = this.spent[d]
+          const g1 = Math.max(
+            t.prune1Twist[this.sl[d] * N_TWIST + this.tw[d]],
+            t.prune1Flip[this.sl[d] * N_FLIP + this.fl[d]],
+            t.prune1TwistFlip[this.tw[d] * N_FLIP + this.fl[d]],
+          )
+          if (spent + g1 > this.threshold) {
+            this.depth--
+            continue
+          }
+          // The whole-cube bound can only cut anything once the best route is within
+          // reach of it (it never exceeds about 12), so skip the lookups until then.
+          if (spent + 12 >= this.bestCost) {
+            const whole = Math.max(g1, p.pruneCorners[this.cp[d]], p.pruneEdges6[this.ea[d] * N_EDGE3 + this.eb[d]], p.pruneSlice[this.s4[d]])
+            if (spent + whole >= this.bestCost) {
+              this.depth--
+              continue
+            }
+          }
+          if (g1 === 0 && spent === this.threshold) {
+            // Ending on a phase-2 move would just be a cheaper phase 1 plus that move.
+            if (this.last[d] < 0 || !isPhase2Move(this.last[d])) this.leaf(d)
+            this.depth--
+            continue
+          }
+          this.next[d] = 0
+        }
+        const row = (this.last[d] + 1) * N_MOVES
+        let m = this.next[d]
+        while (m < N_MOVES && !ALLOWED[row + m]) m++
+        if (m >= N_MOVES) {
+          this.depth--
+          continue
+        }
+        this.next[d] = m + 1
+        const c = d + 1
+        this.taken[d] = m
+        this.tw[c] = t.twistMove[this.tw[d] * N_MOVES + m]
+        this.fl[c] = t.flipMove[this.fl[d] * N_MOVES + m]
+        this.sl[c] = t.sliceMove[this.sl[d] * N_MOVES + m]
+        this.cp[c] = p.cpermMove[this.cp[d] * N_MOVES + m]
+        this.ea[c] = p.edge3Move[this.ea[d] * N_MOVES + m]
+        this.eb[c] = p.edge3Move[this.eb[d] * N_MOVES + m]
+        this.s4[c] = p.edge4Move[this.s4[d] * N_MOVES + m]
+        this.spent[c] = this.spent[d] + quarterCost(m)
+        this.last[c] = m
+        this.fresh[c] = 1
+        this.depth = c
+      }
+      // This view finished this level; on to the next view, then the next level.
+      this.active = false
+      if (++this.viewIndex === this.views.length) {
+        this.viewIndex = 0
+        this.threshold++
+      }
+    }
+  }
+
+  private begin(): void {
+    const r = this.roots[this.viewIndex]
+    this.depth = 0
+    this.tw[0] = r.tw
+    this.fl[0] = r.fl
+    this.sl[0] = r.sl
+    this.cp[0] = r.cp
+    this.ea[0] = r.ea
+    this.eb[0] = r.eb
+    this.s4[0] = r.s4
+    this.spent[0] = 0
+    this.last[0] = -1
+    this.fresh[0] = 1
+    this.active = true
+  }
+
+  // A phase-1 ending at depth d: find the cheapest way to finish inside G1.
+  private leaf(d: number): void {
+    const t = tables!
+    const view = this.views[this.viewIndex]
+    const head = Array.from(this.taken.subarray(0, d))
+    let cube = view.start
+    for (const m of head) cube = multiply(cube, MOVES[m])
+    const cp = permRank(cube.cp, 8)
+    const ue = permRank(cube.ep.slice(0, 8), 8)
+    const sp = permRank(cube.ep.slice(8).map((e) => e - 8), 4)
+    const base = this.spent[d]
+    const last = d > 0 ? head[d - 1] : -1
+    const floor = Math.max(t.prune2Corner[sp * N_PERM8 + cp], t.prune2Edge[sp * N_PERM8 + ue])
+    if (base + floor >= this.bestCost) return
+    this.tail = []
+    if (this.bestCost === Infinity) {
+      // No solution yet: any one will do, so deepen phase 2 until one appears.
+      for (let limit = floor; !this.phase2First(head, cp, ue, sp, 0, limit, last, base); limit++);
+    } else {
+      this.phase2Better(head, cp, ue, sp, 0, last, base)
+    }
+  }
+
+  private record(head: number[], cost: number): void {
+    const real = this.views[this.viewIndex].toReal([...head, ...this.tail])
+    this.best = real
+    this.bestCost = cost
+    this.onImprove?.(real, cost)
+  }
+
+  // Phase 2 for the first solution: iterative deepening, since there is no bound yet.
+  private phase2First(head: number[], cp: number, ue: number, sp: number, spent: number, limit: number, last: number, base: number): boolean {
+    const t = tables!
     const h = Math.max(t.prune2Corner[sp * N_PERM8 + cp], t.prune2Edge[sp * N_PERM8 + ue])
     if (spent + h > limit) return false
     if (h === 0) {
-      best = view.toReal(path.slice())
-      bestCost = base + spent
+      this.record(head, base + spent)
       return true
     }
     const row = (last + 1) * N_MOVES
     for (const m of PHASE2_MOVES) {
       if (!ALLOWED[row + m]) continue
-      path.push(m)
-      const found = phase2First(
+      this.tail.push(m)
+      const found = this.phase2First(
+        head,
         t.cpermMove[cp * N_MOVES + m],
         t.uedgeMove[ue * N_MOVES + m],
         t.spermMove[sp * N_MOVES + m],
@@ -504,86 +695,40 @@ function searchViews(views: View[], { timeMs, bound }: SearchOptions): number[] 
         m,
         base,
       )
-      path.pop()
+      this.tail.pop()
       if (found) return true
     }
     return false
   }
 
-  // Phase 2 once a solution exists: one depth-first pass bounded by the best
-  // total so far. Every improvement found tightens the bound for the rest of
-  // the pass, so a phase-1 ending is searched once instead of once per depth.
-  function phase2Better(cp: number, ue: number, sp: number, spent: number, last: number, base: number): void {
-    tick()
-    if (timeUp) return
+  // Phase 2 once a solution exists: one pass bounded by the best total so far,
+  // which tightens each time something better is recorded.
+  private phase2Better(head: number[], cp: number, ue: number, sp: number, spent: number, last: number, base: number): void {
+    const t = tables!
     const h = Math.max(t.prune2Corner[sp * N_PERM8 + cp], t.prune2Edge[sp * N_PERM8 + ue])
-    if (base + spent + h >= bestCost) return
+    if (base + spent + h >= this.bestCost) return
     if (h === 0) {
-      best = view.toReal(path.slice())
-      bestCost = base + spent
+      this.record(head, base + spent)
       return
     }
     const row = (last + 1) * N_MOVES
     for (const m of PHASE2_MOVES) {
       if (!ALLOWED[row + m]) continue
-      path.push(m)
-      phase2Better(t.cpermMove[cp * N_MOVES + m], t.uedgeMove[ue * N_MOVES + m], t.spermMove[sp * N_MOVES + m], spent + quarterCost(m), m, base)
-      path.pop()
+      this.tail.push(m)
+      this.phase2Better(head, t.cpermMove[cp * N_MOVES + m], t.uedgeMove[ue * N_MOVES + m], t.spermMove[sp * N_MOVES + m], spent + quarterCost(m), m, base)
+      this.tail.pop()
     }
   }
+}
 
-  // Hand a phase-1 ending (which cost `base`) to phase 2.
-  function finishWithPhase2(base: number): void {
-    let cube = view.start
-    for (const m of path) cube = multiply(cube, MOVES[m])
-    const cp = permRank(cube.cp, 8)
-    const ue = permRank(cube.ep.slice(0, 8), 8)
-    const sp = permRank(cube.ep.slice(8).map((e) => e - 8), 4)
-    const last = path.length ? path[path.length - 1] : -1
-    const floor = Math.max(t.prune2Corner[sp * N_PERM8 + cp], t.prune2Edge[sp * N_PERM8 + ue])
-    if (base + floor >= bestCost) return
-    if (bestCost === Infinity) {
-      for (let limit = floor; !best; limit++) phase2First(cp, ue, sp, 0, limit, last, base)
-    } else {
-      phase2Better(cp, ue, sp, 0, last, base)
-    }
+/** Runs a job until it has a first solution, then for up to `extraMs` more. */
+function runJob(job: RefineJob, extraMs: number): void {
+  const until = performance.now() + extraMs
+  while (!job.exhausted) {
+    const remaining = until - performance.now()
+    if (job.best && remaining <= 0) return
+    job.run(job.best ? remaining : 50)
   }
-
-  // Phase 1: reach G1 at a cost of exactly `threshold`. Raising the threshold
-  // one step at a time is IDA*; cheaper ways into G1 were tried at lower ones.
-  let threshold = 0
-  function phase1(tw: number, fl: number, sl: number, spent: number, last: number): void {
-    tick()
-    if (timeUp) return
-    const h = Math.max(t.prune1Twist[sl * N_TWIST + tw], t.prune1Flip[sl * N_FLIP + fl], t.prune1TwistFlip[tw * N_FLIP + fl])
-    if (spent + h > threshold || spent + h >= bestCost) return
-    if (h === 0 && spent === threshold) {
-      // Ending on a phase-2 move would just be a cheaper phase 1 plus that move.
-      if (last >= 0 && isPhase2Move(last)) return
-      finishWithPhase2(spent)
-      return
-    }
-    const row = (last + 1) * N_MOVES
-    for (let m = 0; m < N_MOVES; m++) {
-      if (!ALLOWED[row + m]) continue
-      path.push(m)
-      phase1(t.twistMove[tw * N_MOVES + m], t.flipMove[fl * N_MOVES + m], t.sliceMove[sl * N_MOVES + m], spent + quarterCost(m), m)
-      path.pop()
-    }
-  }
-
-  const starts = views.map((v) => ({ v, tw: twistOf(v.start.co), fl: flipOf(v.start.eo), sl: slicePositionOf(v.start.ep) }))
-  // Every view at cost 0, then every view at cost 1, ... so the cheap levels of
-  // all six are explored before the expensive levels of any one.
-  for (threshold = 0; threshold <= 30 && threshold < bestCost && !timeUp; threshold++) {
-    for (const s of starts) {
-      if (timeUp || threshold >= bestCost) break
-      view = s.v
-      path.length = 0
-      phase1(s.tw, s.fl, s.sl, 0, -1)
-    }
-  }
-  return best
 }
 
 // ---- Optimal search --------------------------------------------------------
@@ -710,7 +855,11 @@ export function solveDetailed(scramble: string, options: SolveOptions = {}): Sol
   if (quick.path) return done(quick.path, quick.noneBelow)
 
   // 2. Two-phase from six views for the time budget.
-  const best = searchViews(viewsOf(moves), { timeMs: options.timeMs ?? 1500 })!
+  const job = new RefineJob(viewsOf(moves))
+  runJob(job, options.timeMs ?? 1500)
+  const best = job.best!
+  // Every level below the best was ruled out: it is optimal.
+  if (job.exhausted) return done(best, costOf(best))
 
   // 3. Spend what is left trying to beat it, or to prove nothing can.
   const below = Math.min(costOf(best), outside)
@@ -727,8 +876,25 @@ export function solveTwoPhase(scramble: string, options: { timeMs?: number } = {
   initTwoPhase()
   const moves = movesOf(scramble)
   if (isSolvedCubie(moves.reduce((s, m) => multiply(s, MOVES[m]), SOLVED))) return ''
-  return searchViews(viewsOf(moves), { timeMs: options.timeMs ?? 1500 })!.map(moveName).join(' ')
+  const job = new RefineJob(viewsOf(moves))
+  runJob(job, options.timeMs ?? 1500)
+  return job.best!.map(moveName).join(' ')
 }
+
+/**
+ * A search that keeps improving a solution in slices, for the background
+ * refiner: call `run(ms)` repeatedly, stop whenever you like.
+ */
+export function createRefineJob(scramble: string, bound?: number, slice?: { index: number; count: number }): RefineJob {
+  const views = viewsOf(movesOf(scramble))
+  // Several workers can split the six views between them: worker i of n takes
+  // views i, i + n, i + 2n, ...
+  return new RefineJob(slice ? views.filter((_, i) => i % slice.count === slice.index) : views, bound)
+}
+
+/** A solution as text, e.g. "R U2 F'". */
+export const pathToText = (path: number[]) => path.map(moveName).join(' ')
+export const costOfPath = costOf
 
 // ---- Random scrambles ------------------------------------------------------
 /** A uniformly random integer in [0, n), from the browser's cryptographic generator. */
@@ -783,7 +949,9 @@ export function randomScramble(): string {
   for (;;) {
     const target = randomCubie()
     if (isSolvedCubie(target)) continue
-    const solution = searchViews([{ start: target, toReal: (p) => p }], { timeMs: 40 })!
+    const job = new RefineJob([{ start: target, toReal: (p) => p }])
+    runJob(job, 250)
+    const solution = job.best!
     // A random cube needs about 20 turns; a much shorter one is a rare easy
     // cube, so draw again rather than hand out an easy scramble.
     if (solution.length < 16) continue

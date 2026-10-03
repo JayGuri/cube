@@ -2,7 +2,8 @@ import { Alg } from 'cubing/alg'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { applyMove, createInitialState, initCube3Logic, isSolved, movesFromAlg } from '../puzzles/cube3/logic'
 import { solveScramble } from './kociembaCore'
-import { initProofTables, initTwoPhase, randomCubie, randomScramble, solveDetailed, solveTwoPhase } from './twoPhase'
+import { Refiner } from './kociembaCore'
+import { createRefineJob, initProofTables, initTwoPhase, randomCubie, randomScramble, solveDetailed, solveTwoPhase } from './twoPhase'
 
 // Deterministic pseudo-random numbers, so a failure can be reproduced.
 function rng(seed: number) {
@@ -168,6 +169,95 @@ describe("random-state scrambles", () => {
     for (const scramble of scrambles.slice(0, 5)) {
       expect(solvedAfter(scramble, "")).toBe(false)
       expect(solvedAfter(scramble, solveTwoPhase(scramble, { timeMs: 50 }))).toBe(true)
+    }
+  }, 60_000)
+})
+
+describe("the pausable background search", () => {
+  beforeAll(async () => {
+    await initCube3Logic()
+    initTwoPhase()
+  }, 60_000)
+
+  it("can be run in tiny slices and still finish with the optimal answer", () => {
+    const next = rng(21)
+    for (let i = 0; i < 6; i++) {
+      const scramble = randomTurns(next, ["U", "R", "F", "D", "L", "B"], 7)
+      const job = createRefineJob(scramble)
+      let slices = 0
+      while (!job.run(2) && slices++ < 100_000);
+      expect(job.exhausted, scramble).toBe(true)
+      const optimal = solveDetailed(scramble, { timeMs: 200, proveMs: 2000 })
+      expect(optimal.noneBelow).toBe(optimal.cost)
+      // Running to exhaustion proves its best answer optimal, so the two agree.
+      expect(job.bestCost, scramble).toBe(optimal.cost)
+    }
+  }, 120_000)
+
+  it("only reports routes that beat the bound it was given", () => {
+    // "R U F" needs 3 steps. Nothing is cheaper than 3, so a bound of 3 finds nothing...
+    const none = createRefineJob("R U F", 3)
+    while (!none.run(50));
+    expect(none.best).toBeNull()
+    expect(none.exhausted).toBe(true) // ...and that proves 3 cannot be beaten.
+    // With a looser bound it finds the 3-step route and proves it optimal.
+    const found = createRefineJob("R U F", 9)
+    while (!found.run(50));
+    expect(found.bestCost).toBe(3)
+    expect(found.exhausted).toBe(true)
+  })
+
+  it("every improvement is strictly cheaper, and each one really solves the cube", () => {
+    const scramble = "F R U' B2 L D' R2 U F' L2 B D2 R' U2 F2 L' B' D"
+    const job = createRefineJob(scramble)
+    const seen: number[] = []
+    job.onImprove = (path, cost) => {
+      seen.push(cost)
+      expect(path.length).toBeGreaterThan(0)
+    }
+    const until = performance.now() + 2500
+    while (!job.exhausted && performance.now() < until) job.run(50)
+    expect(seen.length).toBeGreaterThan(0)
+    for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeLessThan(seen[i - 1])
+  }, 30_000)
+
+  it("workers that each own some of the views agree: one finishing proves the optimal cost", () => {
+    const next = rng(31)
+    for (let i = 0; i < 4; i++) {
+      const scramble = randomTurns(next, ["U", "R", "F", "D", "L", "B"], 7)
+      const reference = createRefineJob(scramble)
+      while (!reference.run(50));
+      // Three workers, two views each. Each one, run to the end, must reach the same optimal cost.
+      for (let index = 0; index < 3; index++) {
+        const part = createRefineJob(scramble, undefined, { index, count: 3 })
+        while (!part.run(50));
+        expect(part.bestCost, scramble + " slice " + index).toBe(reference.bestCost)
+      }
+    }
+  }, 120_000)
+
+  it("tightening the bound mid-search makes it ignore anything not cheaper", () => {
+    const job = createRefineJob("R U F L D B R U", undefined)
+    job.tighten(2) // nothing solves this in fewer than 2 steps
+    while (!job.run(50));
+    expect(job.best).toBeNull()
+    expect(job.exhausted).toBe(true)
+  })
+
+  it("the Refiner handles slice turns and rotations, and its answer solves the cube", () => {
+    const next = rng(5)
+    for (let i = 0; i < 6; i++) {
+      const scramble = randomTurns(next, ["U", "R", "F", "D", "L", "B", "M", "E", "S", "x", "y", "z"], 9)
+      const refiner = new Refiner(scramble)
+      let solution: string | null = null
+      const until = performance.now() + 600
+      while (performance.now() < until) {
+        const step = refiner.step(20)
+        if (step.solution !== null) solution = step.solution
+        if (step.done) break
+      }
+      expect(solution, scramble).not.toBeNull()
+      expect(solvedAfter(scramble, solution!), scramble).toBe(true)
     }
   }, 60_000)
 })

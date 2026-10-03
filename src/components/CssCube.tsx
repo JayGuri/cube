@@ -69,7 +69,7 @@ const between = (lo: number, hi: number) => lo + Math.random() * (hi - lo)
 // A different scramble every time, of a different length every time.
 const randomScramble = () => {
   const out: string[] = []
-  const length = Math.round(between(10, 17))
+  const length = Math.round(between(12, 15))
   while (out.length < length) {
     const f = FACES[Math.floor(Math.random() * 6)]
     if (out.length && out[out.length - 1][0] === f) continue
@@ -98,7 +98,7 @@ export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPo
   // Where each piece's centre sits when home: a grid cell, or its own block's centre.
   const centres = useRef<Vec3[]>(HOMES.map((p) => (mirror ? pieceBox(p.home).center : p.home)))
   // Each cube tumbles at its own pace and starts at its own point in the loop.
-  const [tumbleStyle] = useState(() => ({ animationDuration: `${between(19, 27).toFixed(1)}s`, animationDelay: `-${between(0, 20).toFixed(1)}s` }))
+  const [tumbleStyle] = useState(() => ({ animationDuration: '24s', animationDelay: `-${between(0, 24).toFixed(1)}s` }))
   const els = useRef<(HTMLDivElement | null)[]>([])
   const pieces = useRef<TrackedPiece[]>(createPieces())
   const queue = useRef<Promise<void>>(Promise.resolve())
@@ -159,14 +159,14 @@ export function CssCube({ cubie = 66, autoplay = false, tumble = false, followPo
     if (autoplay && !reduced) {
       void (async () => {
         // Random pauses and speeds, so two cubes on one page never move in step.
-        await wait(between(300, 2600))
+        await wait(between(300, 2200))
         while (alive.current) {
           const scramble = randomScramble()
-          const pace = between(230, 330)
+          const pace = 270
           for (const m of scramble) if (alive.current) await animate(m, pace)
-          await wait(between(700, 1800))
+          await wait(between(900, 1500))
           for (const m of [...scramble].reverse()) if (alive.current) await animate(invert(m), pace)
-          await wait(between(1400, 3200))
+          await wait(between(1800, 2800))
         }
       })()
     }

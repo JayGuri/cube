@@ -22,7 +22,7 @@
 import type { Alg } from 'cubing/alg'
 import type { BufferGeometry } from 'three'
 
-import type { Solution, SolveEffort } from '../solvers/kociemba'
+import type { RefineHandle, RefineUpdate, Solution, SolveEffort } from '../solvers/kociemba'
 
 export type PuzzleId = 'cube3' | 'mirror'
 
@@ -66,6 +66,12 @@ export interface PuzzlePlugin {
   // Takes the history as well as the state: the solver works from the moves
   // that made the cube (see core/solvers/kociembaCore.ts).
   solve(state: PuzzleState, history: Move[], effort?: SolveEffort): Promise<Solution>
+  /**
+   * Searches in the background for a route cheaper than `bound` quarter turns
+   * from the cube that `history` makes, reporting each improvement. Cancel it
+   * when the cube moves.
+   */
+  refine(history: Move[], bound: number, onUpdate: (update: RefineUpdate) => void): RefineHandle
 
   buildGeometry(): PuzzleMesh
   colorScheme: FaceColorMap

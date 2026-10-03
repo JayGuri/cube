@@ -8,7 +8,11 @@
 
 import { fromOriginalFrame, toFaceTurns } from './frame'
 import {
+  costOfPath,
+  createRefineJob,
   initProofTables,
+  pathToText,
+  type RefineJob,
   initTwoPhase,
   isTwoPhaseReady,
   randomScramble,
@@ -71,4 +75,58 @@ export async function solveScramble(scrambleAlg: string, timeMs?: number): Promi
 /** A random-state scramble (see randomScramble in twoPhase.ts). */
 export function newScrambleAlg(): string {
   return randomScramble()
+}
+
+// ---- Background refinement ---------------------------------------------------
+/** What one slice of a background search found. */
+export interface RefineStep {
+  /** A cheaper solution found during this slice, as an algorithm; null if none. */
+  solution: string | null
+  /** Cost of the best solution so far, in quarter turns (Infinity if none beats the bound). */
+  cost: number
+  /** The search has stopped. */
+  done: boolean
+  /** It stopped because every cheaper cost was ruled out: the best known route is the shortest there is. */
+  optimal: boolean
+}
+
+/**
+ * A two-phase search that keeps improving a solution in short slices, for the
+ * guide to run in the background. `bound` is the cost of the route already in
+ * hand: only strictly cheaper ones are reported. Give up after `maxMs`.
+ */
+export class Refiner {
+  private readonly job: RefineJob
+  private latest: string | null = null
+  private readonly startedAt = performance.now()
+  private readonly maxMs: number
+
+  constructor(scrambleAlg: string, bound?: number, maxMs = 90_000, slice?: { index: number; count: number }) {
+    this.maxMs = maxMs
+    const alg = scrambleAlg.trim()
+    validate(alg)
+    const { turns, frame } = toFaceTurns(alg)
+    this.job = createRefineJob(turns, bound, slice)
+    this.job.onImprove = (path) => {
+      this.latest = fromOriginalFrame(pathToText(path), frame)
+    }
+  }
+
+  /** Another worker found a route costing `cost`: only cheaper ones matter now. */
+  tighten(cost: number): void {
+    this.job.tighten(cost)
+  }
+
+  step(ms: number): RefineStep {
+    const finished = this.job.run(ms)
+    const solution = this.latest
+    this.latest = null
+    const timedOut = !finished && performance.now() - this.startedAt > this.maxMs
+    return {
+      solution,
+      cost: this.job.best ? costOfPath(this.job.best) : Infinity,
+      done: finished || timedOut,
+      optimal: finished,
+    }
+  }
 }

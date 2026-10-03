@@ -26,7 +26,7 @@ import { createGuide, expandSteps, followMove, type GuideState } from '../../cor
 import { useHandGestures } from '../../core/gestures/useHandGestures'
 import type { Move, PuzzleId } from '../../core/puzzles/PuzzlePlugin'
 import { usePuzzleStore } from '../../state/puzzleStore'
-import { quarterTurns } from '../../core/solvers/kociemba'
+import { quarterTurns, releaseSolverPool } from '../../core/solvers/kociemba'
 import { useAcademyStore } from '../../state/academyStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
@@ -392,6 +392,9 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     setGuideStatus('following')
   }
 
+  // The helper workers only exist while this screen is open.
+  useEffect(() => () => releaseSolverPool(), [])
+
   // --- Guided solve ------------------------------------------------------
   // Opt-in via "Guide me"; it shows one quarter turn at a time. A first route
   // arrives within half a second, then a deeper search keeps looking for a
@@ -405,7 +408,6 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
   const guideRef = useRef<GuideState | null>(null)
   const guideOptimalRef = useRef(false)
   const guideTokenRef = useRef(0)
-  const refineTokenRef = useRef(-1)
   const setGuideBoth = (g: GuideState | null) => {
     guideRef.current = g
     setGuide(g)
@@ -417,45 +419,61 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
 
   const stopGuide = () => {
     guideTokenRef.current++
+    stopRefine()
     setGuideBoth(null)
     setGuideStatus('off')
     setOptimalBoth(false)
     setGuideRefining(false)
   }
 
-  // Look for a shorter route from wherever the cube is now. One search runs at
-  // a time; if the cube moves while it thinks, it looks again from there.
-  const refineGuide = async (token: number) => {
-    if (lesson || refineTokenRef.current === token) return
-    refineTokenRef.current = token
-    setGuideRefining(true)
-    try {
-      for (;;) {
-        await drainQueue()
-        const { plugin: p, state: now, moveHistory: history } = usePuzzleStore.getState()
-        if (!p || !now || token !== guideTokenRef.current || !guideRef.current) return
-        const asked = history.length
-        const better = await p.solve(now, history, 'thorough')
-        if (token !== guideTokenRef.current || !guideRef.current) return
-        if (usePuzzleStore.getState().moveHistory.length !== asked) {
-          if (guideOptimalRef.current) return
-          continue
-        }
-        const g = guideRef.current
-        const steps = expandSteps(better.moves)
-        const remaining = g.steps.length - g.index
-        if (steps.length < remaining) setGuideBoth({ steps, index: 0 })
-        if (steps.length <= remaining) setOptimalBoth(better.optimal)
-        return
+  // One search runs in the background whenever the cube is at rest in a
+  // position worth solving. It is started the moment a scramble lands, so if you
+  // ask for the guide or "Solve for me" a few seconds later the route you get
+  // has already been refined; it keeps going while you follow it. Every turn you
+  // make restarts it from the new position, with the route you have left as the
+  // number to beat. It ends when nothing shorter exists (the route is then
+  // proven the shortest possible) or after 90 seconds.
+  const refineRef = useRef<{ cancel: () => void } | null>(null)
+  // The best route the search has found for the cube as it is after `length` turns.
+  const foundRef = useRef<{ length: number; steps: string[]; optimal: boolean } | null>(null)
+  const stopRefine = () => {
+    refineRef.current?.cancel()
+    refineRef.current = null
+    setGuideRefining(false)
+  }
+  const beginSearch = () => {
+    stopRefine()
+    const { plugin: p, moveHistory: history } = usePuzzleStore.getState()
+    if (lesson || !p || history.length === 0) return
+    const token = guideTokenRef.current
+    const g = guideRef.current
+    // With a guide up, only a route shorter than the one being followed is wanted.
+    const bound = g ? g.steps.length - g.index : Infinity
+    if (guideOptimalRef.current || bound <= 1) return
+    setGuideRefining(Boolean(g))
+    const length = history.length
+    const handle = p.refine(history, bound, (update) => {
+      if (token !== guideTokenRef.current || refineRef.current !== handle) return
+      if (update.moves) {
+        const steps = expandSteps(update.moves)
+        foundRef.current = { length, steps, optimal: false }
+        const current = guideRef.current
+        if (current && steps.length < current.steps.length - current.index) setGuideBoth({ steps, index: 0 })
       }
-    } catch {
-      // Keep the route we have.
-    } finally {
-      if (refineTokenRef.current === token) {
-        refineTokenRef.current = -1
+      if (update.done) {
         setGuideRefining(false)
+        if (foundRef.current?.length === length) foundRef.current.optimal = update.optimal
+        // Nothing cheaper than the route being followed exists: it is the shortest.
+        if (guideRef.current) setOptimalBoth(update.optimal)
       }
-    }
+    })
+    refineRef.current = handle
+  }
+  const refineGuide = beginSearch
+  // Drop the search and what it found: the cube has moved on.
+  const forgetSearch = () => {
+    stopRefine()
+    foundRef.current = null
   }
 
   const startGuide = async () => {
@@ -472,11 +490,15 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     try {
       const first = await p.solve(now, history, 'quick')
       if (token !== guideTokenRef.current) return // superseded by a newer move or stop
-      const g = createGuide(first.moves)
+      // A route found while the cube sat still may already beat the quick one.
+      const ready = foundRef.current?.length === history.length ? foundRef.current : null
+      const steps = ready && ready.steps.length < expandSteps(first.moves).length ? ready.steps : expandSteps(first.moves)
+      const g = { steps, index: 0 }
+      const proven = first.optimal || Boolean(ready?.optimal && ready.steps.length === steps.length)
       setGuideBoth(g.steps.length ? g : null)
       setGuideStatus(g.steps.length ? 'following' : 'done')
-      setOptimalBoth(first.optimal)
-      if (g.steps.length && !first.optimal) void refineGuide(token)
+      setOptimalBoth(proven)
+      if (g.steps.length && !proven) refineGuide()
     } catch (e) {
       if (token === guideTokenRef.current) {
         setQueueError((e as Error).message)
@@ -495,7 +517,10 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
       checkFinish()
     })
     let g = guideRef.current
-    if (!g) return
+    if (!g) {
+      forgetSearch()
+      return
+    }
     for (const step of expandSteps([move])) {
       const r = followMove(g, step)
       if (r.outcome === 'off-track') {
@@ -509,7 +534,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
         // the route. The background search still looks for something shorter.
         setGuideBoth({ steps: [invertStep(step), ...g.steps.slice(g.index)], index: 0 })
         setOptimalBoth(false)
-        void refineGuide(guideTokenRef.current)
+        refineGuide()
         return
       }
       g = r.guide
@@ -534,7 +559,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     }
     setGuideBoth(g)
     // Closer to solved, the search may now be able to prove the route optimal.
-    if (!guideOptimalRef.current) void refineGuide(guideTokenRef.current)
+    if (!guideOptimalRef.current) refineGuide()
   }
 
   const handleMove = (move: Move | null) => {
@@ -551,8 +576,10 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
       moveQueueRef.current = []
       reset()
       const moves = await plugin.scramble()
-      startSession(moves.length)
+      startSession(quarterTurns(moves))
+      forgetSearch()
       await enqueueMoves(moves)
+      beginSearch()
     } catch (e) {
       setQueueError((e as Error).message)
     } finally {
@@ -569,6 +596,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     moveQueueRef.current = []
     reset()
     startSession(null)
+    forgetSearch()
   }
 
   const handleUndo = () => {
@@ -581,6 +609,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
       checkFinish()
     }
     const g = guideRef.current
+    if (!g) forgetSearch()
     if (!g || lesson || !last) return
     const taken = last.alg.toString()
     if (g.index > 0 && g.steps[g.index - 1] === taken) {
@@ -606,8 +635,13 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
     try {
       await drainQueue()
       const { state: now, moveHistory: history } = usePuzzleStore.getState()
-      const { moves, optimal } = await plugin.solve(now!, history, 'normal')
+      const solved = await plugin.solve(now!, history, 'normal')
       if (token !== solveTokenRef.current) return // stopped or superseded while thinking
+      // The background search may have found something shorter while the cube sat still.
+      const ready = foundRef.current?.length === history.length ? foundRef.current : null
+      const better = ready && ready.steps.length < expandSteps(solved.moves).length
+      const moves = better ? movesFromAlg(new Alg(ready.steps.join(' '))) : solved.moves
+      const optimal = better ? ready.optimal : solved.optimal
       setSolutionOptimal(optimal)
       if (moves.length === 0) {
         closeSolution()
@@ -887,7 +921,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
                 {solved ? 'Solved' : 'Scrambled'}
               </span>
               {scrambleLength !== null && (
-                <span className="text-[#9C9AA3]" data-testid="scramble-length" title="Turns used to scramble the cube">
+                <span className="text-[#9C9AA3]" data-testid="scramble-length" title="Turns used to scramble the cube, counted the same way as your moves: a half turn counts two">
                   Scramble: {scrambleLength}
                 </span>
               )}

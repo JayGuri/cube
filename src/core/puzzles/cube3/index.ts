@@ -1,4 +1,4 @@
-import { solveFromHistory } from '../../solvers/kociemba'
+import { refineFromHistory, solveFromHistory } from '../../solvers/kociemba'
 import type { Move, PuzzlePlugin } from '../PuzzlePlugin'
 import { buildCube3Geometry, CUBE3_COLORS } from './geometry'
 import {
@@ -24,6 +24,7 @@ export async function createCube3Plugin(): Promise<PuzzlePlugin> {
     isSolved,
     scramble,
     solve: async (_state, history: Move[], effort) => solveFromHistory(history, 90, { effort }),
+    refine: (history: Move[], bound, onUpdate) => refineFromHistory(history, bound, onUpdate),
 
     buildGeometry: buildCube3Geometry,
     colorScheme: CUBE3_COLORS,
