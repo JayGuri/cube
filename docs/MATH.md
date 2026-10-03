@@ -436,6 +436,28 @@ and gigabytes. Two-phase answers land within a couple of moves of optimal.
 independent implementation, and require it to be solved, for random scrambles,
 for the superflip, and for cubes made with slice turns and rotations.
 
+### Searching while you play
+
+The first route comes back in about 0.4 seconds, so Guide me never makes you
+wait. A better one is then looked for in the background:
+
+- **It starts early.** The search begins the moment a scramble lands, so by the
+  time you press Guide me it has usually beaten the first route.
+- **It is resumable.** The search keeps its own stack and runs in 30 ms slices,
+  so it can be told to stop or to tighten its target within a blink.
+- **It is spread over cores.** Up to four helper workers each take some of the
+  six views and tell each other every new best cost. One of them finishing all
+  its cost levels proves the route optimal, because every solution passes through
+  the simpler family of positions at its last entry into it.
+- **It restarts at every move you make.** Following the guide, each correct turn
+  shortens the remaining route by one step. The search restarts from your new
+  cube with "beat what is left" as its target, and swaps the guide to the new
+  route when it finds a shorter one. A wrong turn is recovered by undoing it
+  first, instantly, with no waiting for a new search.
+- **It can only help.** The target is always the route already in hand, so the
+  guide never gets longer, and the route is never longer than undoing the
+  scramble in the same units (quarter turns).
+
 ### Random scrambles
 
 A scramble is not a random string of moves, which would favour some cubes over
