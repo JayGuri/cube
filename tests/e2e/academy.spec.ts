@@ -208,3 +208,21 @@ test("the guide's route is never longer than simply undoing the scramble, in the
   expect(total).toBeLessThanOrEqual(scrambleSteps)
   expect(total).toBeGreaterThan(10)
 })
+
+test('choosing Hands asks for the camera at once, without waiting for the hand model', async ({ page }) => {
+  await page.addInitScript(`
+    navigator.mediaDevices.getUserMedia = async () => {
+      window.__asked = performance.now()
+      throw Object.assign(new Error('blocked'), { name: 'NotAllowedError' })
+    }
+  `)
+  // Hold the model back: the prompt must not be queued behind it.
+  await page.route('**/models/hand_landmarker.task', async (route) => {
+    await new Promise((r) => setTimeout(r, 6000))
+    await route.continue()
+  })
+  await page.goto('/play/cube3')
+  await page.getByTestId('input-mode-hands').click()
+  await page.waitForFunction('window.__asked !== undefined', null, { timeout: 2500 })
+  await expect(page.getByTestId('gesture-error')).toContainText('Camera is blocked')
+})

@@ -31,9 +31,9 @@ import { useAcademyStore } from '../../state/academyStore'
 import { useSettingsStore } from '../../state/settingsStore'
 
 const BUTTON =
-  'rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-[#ECEAE4] transition hover:border-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD500] disabled:cursor-not-allowed disabled:opacity-40'
+  'rounded-full border border-white/10 px-3 py-2 text-[0.8rem] sm:px-4 sm:text-sm font-medium text-[#ECEAE4] transition hover:border-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD500] disabled:cursor-not-allowed disabled:opacity-40'
 const PRIMARY =
-  'rounded-full bg-[#FFD500] px-5 py-2 text-sm font-semibold text-[#16171B] transition hover:bg-[#FFE04D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD500] disabled:cursor-not-allowed disabled:opacity-40'
+  'rounded-full bg-[#FFD500] px-3.5 py-2 text-[0.8rem] sm:px-5 sm:text-sm font-semibold text-[#16171B] transition hover:bg-[#FFE04D] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD500] disabled:cursor-not-allowed disabled:opacity-40'
 
 type InputMode = 'mouse' | 'hands'
 
@@ -61,11 +61,11 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
   const [inputMode, setInputMode] = useState<InputMode>(defaultInputMode)
   // Hands mode always shows its gesture key until dismissed: there is no
   // other way for a first-time user to discover the vocabulary.
-  const [showHandsHelp, setShowHandsHelp] = useState(!lessonId)
+  const [showHandsHelp, setShowHandsHelp] = useState(!lessonId && !onPhone())
   // First-visit mouse tips; dismissal is remembered on this device.
   const [tipsOpen, setTipsOpen] = useState(() => {
     try {
-      return localStorage.getItem(TIPS_KEY) !== 'dismissed'
+      return localStorage.getItem(TIPS_KEY) !== 'dismissed' && !onPhone()
     } catch {
       return true
     }
@@ -808,7 +808,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
             {showMouseTips && <MouseTips onClose={dismissTips} mirror={plugin.id === 'mirror'} />}
 
             {inputMode === 'hands' && (
-              <div className="absolute right-4 top-4 w-64 overflow-hidden rounded-xl border border-white/10 bg-[#202227] shadow-lg">
+              <div className="absolute right-3 top-3 w-32 overflow-hidden rounded-xl border border-white/10 bg-[#202227] shadow-lg sm:right-4 sm:top-4 sm:w-64">
                 <div className="relative aspect-video bg-black">
                   {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                   <video
@@ -900,7 +900,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
               </Link>
             </footer>
           ) : (
-          <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-white/[0.07] px-4 py-3 sm:gap-3 sm:px-6">
+          <footer className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-white/[0.07] px-3 py-2.5 sm:gap-3 sm:px-6 sm:py-3">
             <button type="button" className={PRIMARY} onClick={() => void handleScramble()} disabled={busy}>
               Scramble
             </button>
@@ -911,7 +911,7 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
               Reset
             </button>
 
-            <div className="mx-auto flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm">
+            <div className="order-first flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 pb-1 text-xs sm:order-none sm:mx-auto sm:w-auto sm:pb-0 sm:text-sm">
               <span
                 data-testid="solved-status"
                 className={`rounded-full px-3 py-1 font-semibold ${
@@ -972,6 +972,11 @@ export function FreePlay({ lessonId }: { lessonId?: string } = {}) {
 }
 
 const TIPS_KEY = 'palmtwist.tips.v1'
+
+/** A phone-sized screen, where the cube needs the room more than the tips do. */
+function onPhone(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+}
 
 function MouseTips({ onClose, mirror }: { onClose: () => void; mirror: boolean }) {
   return (

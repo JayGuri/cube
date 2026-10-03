@@ -31,7 +31,7 @@ export function SolutionPlayer({ status, moves, index, playing, speed, steps, op
   const finished = index >= moves.length && moves.length > 0
 
   return (
-    <div data-testid="solution-player" className="absolute left-1/2 top-4 z-10 w-max max-w-[calc(100%-2rem)] -translate-x-1/2">
+    <div data-testid="solution-player" className="absolute bottom-3 left-1/2 z-10 sm:bottom-auto sm:top-4 w-max max-w-[calc(100%-2rem)] -translate-x-1/2">
       <div className="relative flex items-center gap-1 overflow-hidden rounded-2xl border border-white/10 bg-[#202227]/90 py-1.5 pl-2 pr-2 text-sm text-[#9C9AA3] shadow-lg backdrop-blur">
         {status === 'solving' ? (
           <span data-testid="solution-finding" className="flex items-center gap-3 px-3 py-1.5">

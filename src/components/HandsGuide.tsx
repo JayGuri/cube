@@ -203,7 +203,7 @@ export function GuidePanel({
   return (
     <div
       data-testid="guide-panel"
-      className="absolute left-1/2 top-4 z-10 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-4 overflow-hidden rounded-2xl border border-[#F5B83D]/40 bg-[#202227]/90 py-2 pl-4 pr-3 text-sm text-[#9C9AA3] shadow-lg backdrop-blur"
+      className="absolute bottom-3 left-1/2 z-10 sm:bottom-auto sm:top-4 flex w-[calc(100%-1.5rem)] sm:w-auto max-w-[calc(100%-1.5rem)] sm:max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-4 overflow-hidden rounded-2xl border border-[#F5B83D]/40 bg-[#202227]/90 py-2 pl-4 pr-3 text-sm text-[#9C9AA3] shadow-lg backdrop-blur"
     >
       {status === 'solving' && <span data-testid="guide-solving">Finding the shortest solution…</span>}
 

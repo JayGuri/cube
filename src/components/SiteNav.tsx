@@ -7,7 +7,7 @@ const GITHUB = 'https://github.com/JayGuri/cube'
 // the whole site is built on is also the menu.
 const TILES = [
   { label: 'Learn', to: '/learn', colour: '#FF8A00' },
-  { label: 'Play', to: '/play/cube3', colour: '#2FB36B' },
+  { label: '3×3', to: '/play/cube3', colour: '#2FB36B' },
   { label: 'Mirror', to: '/play/mirror', colour: '#5B8DEF' },
   { label: 'Settings', to: '/settings', colour: '#F4F5F8' },
   { label: 'Maths', to: `${GITHUB}/blob/main/docs/MATH.md`, colour: '#E5384F' },

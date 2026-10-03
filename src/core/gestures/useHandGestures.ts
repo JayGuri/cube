@@ -36,6 +36,16 @@ export interface UseHandGesturesResult {
   ready: boolean
 }
 
+/** What a camera failure means to a person, not to a browser. */
+function friendlyCameraError(e: unknown): string {
+  const name = (e as { name?: string })?.name
+  if (name === 'NotAllowedError' || name === 'SecurityError')
+    return 'Camera is blocked. Allow it from the lock icon in the address bar, then switch to Hands again.'
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No camera found on this device.'
+  if (name === 'NotReadableError') return 'The camera is busy in another app. Close it and switch to Hands again.'
+  return (e as Error)?.message || 'The camera could not start.'
+}
+
 export function useHandGestures(options: UseHandGesturesOptions): UseHandGesturesResult {
   const { enabled, thresholds, targetFps = 25 } = options
 
@@ -58,23 +68,28 @@ export function useHandGestures(options: UseHandGesturesOptions): UseHandGesture
     let cancelled = false
 
     async function setup() {
+      let stream: MediaStream | null = null
       try {
+        // Ask for the camera straight away so the browser's permission prompt
+        // appears the moment Hands is chosen. The hand model (a few MB) loads
+        // alongside it instead of in front of it.
         const service = new HandLandmarkerService()
-        await service.init()
-        const stream = await startCamera()
+        const [, camera] = await Promise.all([service.init(), startCamera().then((s) => (stream = s))])
         if (cancelled) {
-          stopCamera(stream)
+          stopCamera(camera)
+          service.dispose()
           return
         }
         serviceRef.current = service
-        streamRef.current = stream
+        streamRef.current = camera
         if (videoRef.current) {
-          videoRef.current.srcObject = stream
+          videoRef.current.srcObject = camera
           await videoRef.current.play()
         }
         setReady(true)
       } catch (e) {
-        if (!cancelled) setError((e as Error).message)
+        stopCamera(stream)
+        if (!cancelled) setError(friendlyCameraError(e))
       }
     }
     void setup()
